@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Notebook and the Sticky Note: A hands-on tour of State Space Models, Linear Attention and the Delta Rule</title>
+<meta name="description" content="An interactive, math-first explainer of state space models (S4, Mamba, Mamba-2), linear attention, the delta rule (DeltaNet, Gated DeltaNet) and hybrid architectures.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous"></script>
+<style>
+:root{
+  color-scheme: light;
+  --plane:#f9f9f7; --surface:#fcfcfb; --surface-2:#f2f1ed; --surface-3:#e9e8e2;
+  --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781; --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,0.10);
+  --attn:#eb6834; --ssm:#2a78d6; --delta:#1baf7a; --hyb:#6250d6;
+  --attn-wash:rgba(235,104,52,.10); --ssm-wash:rgba(42,120,214,.09); --delta-wash:rgba(27,175,122,.11); --hyb-wash:rgba(98,80,214,.09); --warn-wash:rgba(250,178,25,.14);
+  --good:#006300; --bad:#d03b3b;
+  --serif: Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --shadow: 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark){
+  :root:where(:not([data-theme="light"])){
+    color-scheme: dark;
+    --plane:#0d0d0d; --surface:#1a1a19; --surface-2:#222220; --surface-3:#2c2c2a;
+    --ink:#f0efec; --ink-2:#c3c2b7; --muted:#898781; --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,0.10);
+    --attn:#d95926; --ssm:#3987e5; --delta:#199e70; --hyb:#9085e9;
+    --attn-wash:rgba(217,89,38,.16); --ssm-wash:rgba(57,135,229,.14); --delta-wash:rgba(25,158,112,.16); --hyb-wash:rgba(144,133,233,.14); --warn-wash:rgba(250,178,25,.12);
+    --good:#0ca30c; --bad:#e66767; --shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --plane:#0d0d0d; --surface:#1a1a19; --surface-2:#222220; --surface-3:#2c2c2a;
+  --ink:#f0efec; --ink-2:#c3c2b7; --muted:#898781; --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,0.10);
+  --attn:#d95926; --ssm:#3987e5; --delta:#199e70; --hyb:#9085e9;
+  --attn-wash:rgba(217,89,38,.16); --ssm-wash:rgba(57,135,229,.14); --delta-wash:rgba(25,158,112,.16); --hyb-wash:rgba(144,133,233,.14); --warn-wash:rgba(250,178,25,.12);
+  --good:#0ca30c; --bad:#e66767; --shadow: 0 1px 2px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:24px}
+body{margin:0; background:var(--plane); color:var(--ink); font:18px/1.72 var(--serif); -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility}
+a{color:var(--ssm); text-decoration-thickness:1px; text-underline-offset:2px}
+::selection{background:var(--ssm-wash)}
+#progress{position:fixed; top:0; left:0; height:3px; width:0; background:linear-gradient(90deg,var(--ssm),var(--delta)); z-index:50}
+.topbar{position:sticky; top:0; z-index:40; display:flex; justify-content:flex-end; gap:8px; padding:10px 18px; pointer-events:none}
+.topbar button{pointer-events:auto}
+.wrap{max-width:1240px; margin:0 auto; display:grid; grid-template-columns:230px minmax(0,1fr); gap:56px; padding:0 28px}
+nav.toc{position:sticky; top:16px; align-self:start; max-height:calc(100vh - 32px); overflow:auto; font:13px/1.45 var(--sans); padding:8px 0 40px}
+nav.toc .brand{font-weight:700; font-size:13px; letter-spacing:.02em; color:var(--ink); margin:0 0 14px}
+nav.toc ol{list-style:none; margin:0; padding:0}
+nav.toc li{margin:0}
+nav.toc a{display:block; color:var(--ink-2); text-decoration:none; padding:4px 10px; border-left:2px solid var(--grid); transition:color .15s, border-color .15s}
+nav.toc a:hover{color:var(--ink)}
+nav.toc a.active{color:var(--ink); border-left-color:var(--ssm); font-weight:600}
+nav.toc .part{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin:16px 0 4px 12px; font-weight:600}
+nav.toc ol ol a{padding-left:22px; font-size:12.5px}
+main{min-width:0; max-width:860px; padding-bottom:120px}
+@media (max-width:1080px){ .wrap{grid-template-columns:1fr; gap:0} nav.toc{display:none} }
+/* hero */
+.hero{position:relative; margin:8px 0 56px; padding:56px 0 24px}
+.hero .kicker{font:600 12px/1 var(--sans); letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+.hero h1{font:800 clamp(34px,5.2vw,56px)/1.05 var(--sans); letter-spacing:-.025em; margin:14px 0 18px}
+.hero h1 .a{color:var(--attn)} .hero h1 .s{color:var(--ssm)}
+.hero p.lede{font-size:21px; line-height:1.6; color:var(--ink-2); max-width:700px; margin:0 0 26px}
+.hero canvas{width:100%; height:260px; display:block; border-radius:18px; background:var(--surface); border:1px solid var(--ring); box-shadow:var(--shadow)}
+.hero .meta{display:flex; flex-wrap:wrap; gap:8px 18px; font:13px/1.4 var(--sans); color:var(--muted); margin-top:14px}
+.chips{display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 0}
+.chip{font:600 12px/1 var(--sans); padding:7px 11px; border-radius:999px; background:var(--surface-2); color:var(--ink-2); border:1px solid var(--ring)}
+.chip i{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; vertical-align:0}
+/* headings */
+.part-head{margin:96px 0 8px; padding-top:28px; border-top:1px solid var(--grid)}
+.part-head .num{font:700 12px/1 var(--sans); letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
+.part-head h2{font:800 clamp(28px,3.6vw,40px)/1.12 var(--sans); letter-spacing:-.02em; margin:10px 0 6px}
+.part-head p{font-size:19px; color:var(--ink-2); margin:6px 0 0}
+h3{font:750 25px/1.25 var(--sans); letter-spacing:-.01em; margin:64px 0 10px}
+h3 .tag{font:600 11px/1 var(--sans); letter-spacing:.08em; text-transform:uppercase; vertical-align:middle; margin-left:10px; padding:5px 8px; border-radius:6px; background:var(--surface-2); color:var(--ink-2)}
+h4{font:700 18px/1.3 var(--sans); margin:36px 0 6px}
+p{margin:14px 0}
+strong{font-weight:700}
+.sans{font-family:var(--sans)}
+.small{font-size:15px; color:var(--ink-2)}
+.muted{color:var(--muted)}
+.c-attn{color:var(--attn)} .c-ssm{color:var(--ssm)} .c-delta{color:var(--delta)} .c-hyb{color:var(--hyb)}
+.dot{display:inline-block; width:9px; height:9px; border-radius:50%; vertical-align:1px; margin-right:6px}
+/* callouts */
+.callout{margin:26px 0; padding:16px 20px 16px 20px; border-radius:12px; border:1px solid var(--ring); background:var(--surface); position:relative}
+.callout::before{content:""; position:absolute; left:0; top:12px; bottom:12px; width:3px; border-radius:3px; background:var(--ssm)}
+.callout .lbl{font:700 11.5px/1 var(--sans); letter-spacing:.1em; text-transform:uppercase; color:var(--ink-2); display:flex; align-items:center; gap:8px; margin-bottom:8px}
+.callout p:first-of-type{margin-top:0} .callout p:last-child{margin-bottom:0}
+.callout.intuition{background:var(--ssm-wash)} .callout.intuition::before{background:var(--ssm)}
+.callout.aha{background:var(--delta-wash)} .callout.aha::before{background:var(--delta)}
+.callout.attn{background:var(--attn-wash)} .callout.attn::before{background:var(--attn)}
+.callout.take{background:var(--hyb-wash)} .callout.take::before{background:var(--hyb)}
+.callout.warn{background:var(--warn-wash)} .callout.warn::before{background:#c98500}
+.callout .ico{width:18px; height:18px}
+/* math */
+.katex{font-size:1.06em}
+.katex-display{margin:18px 0; overflow-x:auto; overflow-y:hidden; padding:4px 0}
+.eqbox{background:var(--surface); border:1px solid var(--ring); border-radius:14px; padding:6px 20px; margin:22px 0; box-shadow:var(--shadow)}
+.eqbox .cap{font:600 12px/1.3 var(--sans); color:var(--muted); letter-spacing:.06em; text-transform:uppercase; padding-top:10px}
+.symbols{display:grid; grid-template-columns:max-content 1fr; gap:6px 18px; margin:12px 0 22px; padding:14px 18px; background:var(--surface-2); border-radius:12px; font-size:16px; line-height:1.5}
+.symbols dt{text-align:right; white-space:nowrap}
+.symbols dd{margin:0; color:var(--ink-2)}
+.deriv{list-style:none; counter-reset:step; margin:18px 0 26px; padding:0}
+.deriv>li{counter-increment:step; display:grid; grid-template-columns:34px minmax(0,1.9fr) minmax(0,1fr); gap:14px; align-items:center; padding:10px 0; border-bottom:1px dashed var(--grid)}
+.deriv>li:last-child{border-bottom:none}
+.deriv>li::before{content:counter(step); font:700 12px/24px var(--sans); width:24px; height:24px; text-align:center; border-radius:50%; background:var(--surface-3); color:var(--ink-2)}
+.deriv .m{overflow-x:auto; overflow-y:hidden}
+.deriv .why{font:14.5px/1.5 var(--sans); color:var(--ink-2)}
+.deriv .m .katex-display{margin:4px 0} .deriv .m .katex{font-size:1em}
+@media (max-width:720px){ .deriv>li{grid-template-columns:28px 1fr} .deriv .why{grid-column:2} }
+details.toolbox{margin:22px 0; border:1px solid var(--ring); border-radius:14px; background:var(--surface); padding:0 20px}
+details.toolbox summary{cursor:pointer; padding:16px 0; font:700 16px/1.3 var(--sans); list-style:none; display:flex; align-items:center; gap:10px}
+details.toolbox summary::-webkit-details-marker{display:none}
+details.toolbox summary::after{content:"+"; margin-left:auto; font-size:20px; color:var(--muted)}
+details.toolbox[open] summary::after{content:"\2212"}
+details.toolbox .inner{padding:0 0 16px}
+.numex{font-family:var(--sans); font-size:15px; background:var(--surface-2); border-radius:10px; padding:12px 16px; margin:14px 0}
+.numex b{font-weight:700}
+/* widgets */
+.widget{background:var(--surface); border:1px solid var(--ring); border-radius:18px; padding:20px 22px 18px; margin:30px 0 34px; box-shadow:var(--shadow); font-family:var(--sans); font-size:14px; line-height:1.45; position:relative}
+.widget .wh{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:12px}
+.widget .wt{font:700 16px/1.3 var(--sans)}
+.widget .wt::before{content:"\25B6"; font-size:10px; color:var(--ssm); margin-right:8px; vertical-align:2px}
+.widget .wd{color:var(--muted); font-size:13px}
+.widget .controls{display:flex; flex-wrap:wrap; gap:14px 22px; align-items:center; margin:10px 0}
+.widget label{display:flex; align-items:center; gap:10px; color:var(--ink-2); font-size:13px}
+.widget label .val{font-variant-numeric:tabular-nums; color:var(--ink); font-weight:600; min-width:48px}
+.widget input[type=range]{accent-color:var(--ssm); width:170px}
+.widget svg{display:block; width:100%; height:auto; overflow:visible}
+.widget svg text{font-family:var(--sans)}
+.btn{font:600 13px/1 var(--sans); padding:8px 13px; border-radius:999px; border:1px solid var(--ring); background:var(--surface-2); color:var(--ink); cursor:pointer; transition:background .15s, border-color .15s}
+.btn:hover{background:var(--surface-3)}
+.btn.on{background:var(--ink); color:var(--surface); border-color:var(--ink)}
+.seg{display:inline-flex; border:1px solid var(--ring); border-radius:999px; padding:3px; background:var(--surface-2); gap:2px}
+.seg button{font:600 12.5px/1 var(--sans); border:none; background:transparent; color:var(--ink-2); padding:7px 12px; border-radius:999px; cursor:pointer}
+.seg button.on{background:var(--surface); color:var(--ink); box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin:12px 0}
+.tile{background:var(--surface-2); border-radius:12px; padding:12px 14px}
+.tile .l{font-size:12px; color:var(--ink-2)}
+.tile .v{font-size:24px; font-weight:650; letter-spacing:-.01em; margin-top:2px}
+.tile .s{font-size:12px; color:var(--muted)}
+.readout{font-variant-numeric:tabular-nums; font-size:13px; color:var(--ink-2); background:var(--surface-2); border-radius:10px; padding:10px 12px; margin-top:10px; overflow-x:auto}
+.readout table{border-collapse:collapse; width:100%}
+.readout td,.readout th{padding:4px 8px; text-align:right; border-bottom:1px solid var(--grid); white-space:nowrap}
+.readout th{font-weight:600; color:var(--ink-2); text-align:right}
+.readout td:first-child,.readout th:first-child{text-align:left}
+.legend{display:flex; flex-wrap:wrap; gap:6px 16px; font-size:12.5px; color:var(--ink-2); margin:6px 0}
+.legend span{display:inline-flex; align-items:center; gap:6px}
+.legend i{display:inline-block; width:14px; height:3px; border-radius:2px}
+.legend i.sq{width:10px; height:10px; border-radius:3px}
+.tip{position:fixed; pointer-events:none; z-index:100; background:var(--ink); color:var(--surface); font:12px/1.4 var(--sans); padding:7px 9px; border-radius:7px; opacity:0; transition:opacity .1s; max-width:280px; box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.tip b{font-weight:700}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:18px}
+@media (max-width:760px){ .grid2{grid-template-columns:1fr} }
+.tokens{display:flex; flex-wrap:wrap; gap:4px; margin:8px 0}
+.tok{font:600 12.5px/1 var(--sans); padding:6px 7px; border-radius:6px; background:var(--surface-2); border:1px solid var(--ring); cursor:default}
+/* comparison table */
+.cmp{width:100%; border-collapse:separate; border-spacing:0; font:13px/1.35 var(--sans); margin:8px 0}
+.cmp th{font-weight:600; color:var(--ink-2); text-align:center; padding:8px 6px; border-bottom:1px solid var(--axis); vertical-align:bottom}
+.cmp th:first-child{text-align:left}
+.cmp td{padding:8px 6px; text-align:center; border-bottom:1px solid var(--grid)}
+.cmp td:first-child{text-align:left; font-weight:600; white-space:nowrap}
+.cmp tr:hover td{background:var(--surface-2)}
+.mk{display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--ink-2)}
+.mk svg{width:15px; height:15px; display:inline-block}
+.cards{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; margin:18px 0}
+.card{background:var(--surface); border:1px solid var(--ring); border-radius:14px; padding:14px 16px; font:14px/1.5 var(--sans); box-shadow:var(--shadow)}
+.card h5{margin:0 0 2px; font:700 15px/1.3 var(--sans)}
+.card .yr{font-size:12px; color:var(--muted)}
+.card .row{margin-top:8px}
+.card .row b{font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-2); display:block}
+.card.fam-ssm{border-top:3px solid var(--ssm)} .card.fam-delta{border-top:3px solid var(--delta)} .card.fam-attn{border-top:3px solid var(--attn)} .card.fam-hyb{border-top:3px solid var(--hyb)}
+.timeline{position:relative; margin:22px 0}
+.gen{display:grid; grid-template-columns:120px 1fr; gap:18px; padding:16px 0; border-bottom:1px solid var(--grid)}
+.gen .g{font:800 13px/1.3 var(--sans); letter-spacing:.06em; text-transform:uppercase}
+.gen .g small{display:block; font-weight:500; letter-spacing:0; text-transform:none; color:var(--muted); font-size:12px}
+.fix{font:14px/1.5 var(--sans); background:var(--surface-2); border-radius:10px; padding:8px 12px; margin-top:8px}
+.refs{font-size:15px; line-height:1.5}
+.refs li{margin:6px 0}
+footer{margin-top:80px; padding-top:20px; border-top:1px solid var(--grid); font:13px/1.6 var(--sans); color:var(--muted)}
+.kbd{font:12px var(--mono); background:var(--surface-2); border:1px solid var(--ring); border-radius:5px; padding:1px 5px}
+.pullquote{font:italic 23px/1.5 var(--serif); color:var(--ink); border-left:3px solid var(--hyb); padding:4px 0 4px 20px; margin:30px 0}
+.stack{display:flex; gap:2px; margin:4px 0}
+.stack i{flex:1; height:22px; border-radius:3px}
+.stackrow{display:grid; grid-template-columns:170px 1fr 120px; gap:12px; align-items:center; font:13px/1.3 var(--sans); padding:6px 0}
+.stackrow .n{font-weight:650}
+.stackrow .r{color:var(--ink-2); font-variant-numeric:tabular-nums; text-align:right}
+@media (max-width:720px){ .stackrow{grid-template-columns:1fr} .stackrow .r{text-align:left} }
+.err{color:var(--bad)} .ok{color:var(--good)}
+@media print{ body{-webkit-print-color-adjust:exact; print-color-adjust:exact} nav.toc,.topbar,#progress{display:none} .wrap{display:block} .widget{break-inside:avoid} }
+</style>
+</head>
+<body>
+<div id="progress"></div>
+<div class="topbar"><button class="btn" id="themeBtn" aria-label="Toggle dark mode">&#9680; Theme</button></div>
+<div class="wrap">
+<nav class="toc" aria-label="Table of contents">
+  <p class="brand">The Notebook &amp; the Sticky Note</p>
+  <div class="part">I &middot; Big picture</div>
+  <ol>
+    <li><a href="#s-broken">What was broken</a></li>
+    <li><a href="#s-now">Why it matters now</a></li>
+    <li><a href="#s-aha">The &ldquo;aha&rdquo; in one picture</a></li>
+  </ol>
+  <div class="part">II &middot; The math, step by step</div>
+  <ol>
+    <li><a href="#s-toolbox">Math toolbox</a></li>
+    <li><a href="#s-attn">Attention, honestly</a></li>
+    <li><a href="#s-linear">Linear attention</a></li>
+    <li><a href="#s-bucket">The leaky bucket (SSMs)</a></li>
+    <li><a href="#s-conv">Recurrence = convolution</a></li>
+    <li><a href="#s-hippo">HiPPO: memory as compression</a></li>
+    <li><a href="#s-select">Selectivity (Mamba)</a></li>
+    <li><a href="#s-scan">The parallel scan</a></li>
+    <li><a href="#s-ssd">Mamba-2 &amp; duality</a></li>
+    <li><a href="#s-delta">The delta rule</a></li>
+    <li><a href="#s-parity">Negative eigenvalues</a></li>
+    <li><a href="#s-capacity">The capacity wall</a></li>
+  </ol>
+  <div class="part">III &middot; How they stack up</div>
+  <ol>
+    <li><a href="#s-tree">Bottleneck &rarr; fix</a></li>
+    <li><a href="#s-score">The scorecard</a></li>
+    <li><a href="#s-hybrid">Hybrids &amp; memory</a></li>
+  </ol>
+  <div class="part">IV &middot; My take</div>
+  <ol>
+    <li><a href="#s-unsolved">Still unsolved</a></li>
+    <li><a href="#s-surprise">What surprised me</a></li>
+    <li><a href="#s-next">Where it&rsquo;s heading</a></li>
+    <li><a href="#s-refs">References</a></li>
+  </ol>
+</nav>
+<main>
+<header class="hero">
+  <div class="kicker">An interactive companion to the survey &ldquo;Beyond Quadratic Attention&rdquo;</div>
+  <h1>The <span class="a">notebook</span> and the <span class="s">sticky&nbsp;note</span></h1>
+  <p class="lede">How sequence models learned to read a million tokens without re-reading them: from state space models to Mamba to the delta rule, with every key equation derived from scratch. All you need is basic calculus, a little comfort with vectors, and some curiosity.</p>
+  <canvas id="heroCanvas" aria-label="Animation: attention compares each new token with all previous tokens, while a recurrent model folds each token into a fixed-size memory grid" role="img"></canvas>
+  <div class="chips">
+    <span class="chip"><i style="background:var(--attn)"></i>Softmax attention</span>
+    <span class="chip"><i style="background:var(--ssm)"></i>State space / linear recurrent</span>
+    <span class="chip"><i style="background:var(--delta)"></i>Delta rule &amp; test-time learning</span>
+    <span class="chip"><i style="background:var(--hyb)"></i>Hybrids</span>
+  </div>
+  <div class="meta"><span>&asymp; 60 min read</span><span>12 interactive figures</span><span>Formal version: <a href="../Survey.pdf">Survey.pdf</a></span></div>
+</header>
+
+<section>
+<div class="part-head" id="part1"><div class="num">Part I</div><h2>The big picture, from zero</h2><p>No equations yet. Just the problem, why it suddenly matters, and the one idea that ties the whole field together.</p></div>
+
+<h3 id="s-broken">1. What was broken</h3>
+<p>Picture yourself reading a long mystery novel. There are two very different ways to keep track of the clues.</p>
+<p><span class="dot" style="background:var(--attn)"></span><strong>The notebook reader.</strong> You copy every word into a notebook. Each time you read a new word, you flip back through <em>every page so far</em>, compare each earlier word with the current one, and decide which ones matter right now. You never forget anything, and you can look up any detail exactly. But at word number 10,000 you are doing 10,000 comparisons for that single word, and the notebook gets thicker with every page.</p>
+<p><span class="dot" style="background:var(--ssm)"></span><strong>The sticky-note reader.</strong> You keep one small sticky note. After each word, you rewrite the note to summarize everything so far. Every word costs the same small amount of work, and the note never grows. The catch: the note is small, so you must constantly decide what to keep and what to erase.</p>
+<p>The notebook reader is <strong>softmax attention</strong>, the heart of the Transformer. The sticky-note reader is a <strong>recurrent neural network</strong> (RNN). Before 2017, RNNs such as the LSTM were the default. They had two practical problems. They had to be trained one word at a time, which wastes a GPU that wants to do thousands of things at once, and their gradients tended to vanish over long distances, so they forgot. The Transformer fixed both: during training it processes all positions in parallel, and any word can look at any other word directly. It won decisively.</p>
+<p>The price of the notebook, though, is <em>quadratic</em>. Word \(t\) compares itself with \(t\) earlier words, so a text of length \(L\) costs about \(1+2+\dots+L \approx L^2/2\) comparisons per layer. Double the length and you quadruple the work. Play with it:</p>
+
+<div class="widget" id="w-cost">
+  <div class="wh"><span class="wt">The cost race</span><span class="wd">Drag the context length. Both axes are logarithmic, so straight lines are power laws.</span></div>
+  <div class="controls"><label>Context length <input type="range" id="costL" min="10" max="20" step="0.1" value="17"><span class="val" id="costLv"></span></label></div>
+  <div class="tiles" id="costTiles"></div>
+  <svg id="costSvg" viewBox="0 0 760 300" role="img" aria-label="Line chart of work per layer versus context length"></svg>
+  <div class="legend"><span><i style="background:var(--attn)"></i>Attention: \(L(L+1)/2\) pairwise comparisons</span><span><i style="background:var(--ssm)"></i>Recurrence: \(L\) state updates</span></div>
+</div>
+
+<p>Speed is only half of it. To generate the next token, the notebook reader must keep every past key and value around: the <strong>KV cache</strong>. It grows linearly with the context and must be read in full for every new token. The sticky-note reader keeps a fixed-size state no matter how long the text is.</p>
+
+<h3 id="s-now">2. Why this matters right now</h3>
+<p>For years the quadratic cost was tolerable because contexts were short: a few thousand tokens. That is no longer true. Models now read entire code repositories, books, hours of transcripts, genomes, and the long trajectories of AI agents that act for hundreds of steps. Contexts of 128K tokens are routine and 1M tokens are shipping.</p>
+<p>At that scale the cost of <em>serving</em> a model, not training it, starts to hurt. For an illustrative 8B-parameter configuration (32 layers, grouped-query attention with 8 key/value heads of size 128, 16-bit numbers), the KV cache costs 128&nbsp;KiB <em>per token</em>. That is 16&nbsp;GiB for a single 128K-token conversation, before counting the model weights. A recurrent layer of comparable width needs a fixed 2&nbsp;MiB state per layer, about 64&nbsp;MiB for all 32 layers, whether the context is 1K or 1M tokens. (Part III has an interactive version of this calculation.)</p>
+<p>So this is no longer an academic curiosity. In 2025, several production model families moved most of their layers to linear-time recurrences and kept only a minority of attention layers: MiniMax-01 (one softmax layer per seven linear layers), NVIDIA&rsquo;s Nemotron-H (about 8% attention), Qwen3-Next and Kimi Linear (three delta-rule layers per attention layer). The rest of this page explains <em>why that recipe works</em>, from first principles.</p>
+
+<h3 id="s-aha">3. The &ldquo;aha&rdquo;, in one picture</h3>
+<p>Here is the idea that took the field from 2020 to today, told in three beats.</p>
+<p><strong>Beat 1: the notebook can be squashed into a matrix.</strong> If you remove one ingredient from attention (the softmax), a little algebra shows that the entire notebook can be summarized by a single fixed-size matrix that you update after every token. Attention <em>becomes</em> an RNN. (Katharopoulos et al., 2020.)</p>
+<p><strong>Beat 2: borrow physics for good memory.</strong> A state that evolves by a <em>linear differential equation</em>, like water in a leaky bucket or charge in a circuit, can be designed to remember for a very long time, and, crucially, can be computed in parallel. That is the <strong>state space model</strong> (S4, 2022).</p>
+<p><strong>Beat 3: make the sticky note smart.</strong> Let the model decide, token by token, <em>how much to write and how much to forget</em> (selectivity, Mamba, 2023), and then how to <em>erase and overwrite a specific memory</em> (the delta rule, DeltaNet, 2024). Finally, accept that a sticky note can never match a notebook at exact recall, and keep a few notebook pages around (hybrids).</p>
+
+<div class="widget" style="padding-bottom:8px">
+  <div class="wh"><span class="wt">One equation to rule them all</span><span class="wd">Every model on this page is a version of this update. Hover the parts.</span></div>
+  <svg id="unifiedSvg" viewBox="0 0 760 210" role="img" aria-label="Diagram of the unified state update: old memory, transition, write, new memory, read"></svg>
+  <div style="font-size:15px; padding:2px 0 8px">$$\underbrace{\mathbf S_t}_{\text{new memory}} \;=\; \underbrace{\mathcal T_t(\mathbf S_{t-1})}_{\text{forget / transform the old memory}} \;+\; \underbrace{\beta_t\,\mathbf v_t\mathbf k_t^{\top}}_{\text{write: store value }\mathbf v_t\text{ under key }\mathbf k_t},\qquad \underbrace{\mathbf o_t=\mathbf S_t\,\mathbf q_t}_{\text{read with query }\mathbf q_t}$$</div>
+</div>
+
+<div class="callout aha"><div class="lbl">The thread through everything</div>
+<p>Every model on this page answers three questions. <strong>What is the memory?</strong> (a vector, a matrix, a small neural network). <strong>How is it updated?</strong> (fixed decay, input-dependent decay, targeted overwrite). <strong>What does the update secretly optimize?</strong> The history of the field is a sequence of better answers, and each answer fixed a specific bottleneck of the previous one. Once you see that, the alphabet soup of S4, Mamba, GLA, DeltaNet and Titans becomes one coherent story.</p></div>
+</section>
+
+<section>
+<div class="part-head" id="part2"><div class="num">Part II</div><h2>The math, step by step</h2><p>Every key formula gets three things: an intuition, a tiny numerical example, and a line-by-line derivation in which no step is skipped. Each right-hand note says <em>why</em> that line follows from the one above.</p></div>
+
+<h3 id="s-toolbox">Math toolbox <span class="tag">3-minute refresher</span></h3>
+<p>Everything below uses only these tools. If they are familiar, skip ahead; if not, open the box. Each item has a tiny example.</p>
+<details class="toolbox">
+<summary>Open the toolbox: vectors, matrices, \(e^x\), and three calculus facts</summary>
+<div class="inner">
+<h4>Vectors and the dot product (a similarity score)</h4>
+<p>A vector is a list of numbers, such as \(\mathbf a=(1,2)\). The dot product multiplies matching entries and adds them up: \(\mathbf a\cdot\mathbf b = a_1b_1 + a_2b_2\). With \(\mathbf b=(3,-1)\): \(\mathbf a\cdot\mathbf b = 1\cdot 3 + 2\cdot(-1) = 1\). For vectors of length 1 (&ldquo;unit vectors&rdquo;), the dot product equals the cosine of the angle between them: \(1\) if they point the same way, \(0\) if they are perpendicular, \(-1\) if opposite. <strong>That is why dot products work as similarity scores.</strong> We also write the dot product as \(\mathbf a^\top\mathbf b\), a row times a column.</p>
+<h4>Matrix times vector</h4>
+<p>Each output entry is the dot product of one <em>row</em> of the matrix with the vector:
+$$\begin{pmatrix}1&2\\3&4\end{pmatrix}\begin{pmatrix}1\\1\end{pmatrix}=\begin{pmatrix}1\cdot1+2\cdot1\\3\cdot1+4\cdot1\end{pmatrix}=\begin{pmatrix}3\\7\end{pmatrix}.$$</p>
+<h4>The outer product \(\mathbf v\mathbf k^\top\) (column times row = matrix)</h4>
+<p>A column times a row gives a whole matrix: entry \((i,j)\) is \(v_i k_j\). With \(\mathbf v=(2,3)\) and \(\mathbf k=(1,0)\):
+$$\mathbf v\mathbf k^\top=\begin{pmatrix}2\\3\end{pmatrix}\begin{pmatrix}1&0\end{pmatrix}=\begin{pmatrix}2&0\\3&0\end{pmatrix}.$$
+The one property we will use constantly is <strong>associativity</strong>: \((\mathbf v\mathbf k^\top)\mathbf q=\mathbf v(\mathbf k^\top\mathbf q)\). On the left, a matrix multiplies a vector; on the right, a vector is scaled by the number \(\mathbf k\cdot\mathbf q\). Check with \(\mathbf q=(1,0)\): the left side is the matrix above times \((1,0)\), which is \((2,3)\); the right side is \((2,3)\times(1\cdot1+0\cdot0)=(2,3)\). Same answer.</p>
+<h4>The exponential and its derivative</h4>
+<p>\(e\approx 2.718\). The function \(e^{x}\) is its own derivative, and by the chain rule \(\frac{d}{dt}e^{at}=a\,e^{at}\). Handy values: \(e^{0}=1\), \(e^{-0.1}\approx0.905\), \(e^{-1}\approx0.368\). The natural log \(\ln\) undoes it: \(\ln(e^x)=x\), and \(\ln 2\approx0.693\).</p>
+<h4>Three calculus facts</h4>
+<p><strong>Product rule:</strong> \((fg)'=f'g+fg'\). <strong>Fundamental theorem of calculus:</strong> \(\frac{d}{dt}\int_0^t g(s)\,ds = g(t)\): the rate at which an accumulated total grows is whatever is being added right now. <strong>Geometric sum:</strong> \(1+r+r^2+\dots+r^{n-1}=\frac{1-r^n}{1-r}\) for \(r\neq1\).</p>
+<h4>Sigma notation</h4>
+<p>\(\sum_{i=1}^{t} x_i\) means &ldquo;add up \(x_1+x_2+\dots+x_t\)&rdquo;. \(\prod_{r=1}^{t} a_r\) means &ldquo;multiply \(a_1a_2\cdots a_t\)&rdquo;.</p>
+</div>
+</details>
+
+<h3 id="s-attn">4. Attention, honestly</h3>
+<p><strong>Intuition first.</strong> Each token asks a question, the <em>query</em>, and every earlier token holds up a label, the <em>key</em>, and a payload, the <em>value</em>. The query is compared with every key; the best matches get most of the weight; the output is a weighted average of the payloads. That is exactly the notebook reader flipping back through the pages.</p>
+<div class="eqbox"><div class="cap">Causal softmax attention</div>
+$$\mathbf o_t=\sum_{i=1}^{t}\underbrace{\frac{\exp\!\big(\mathbf q_t^\top\mathbf k_i/\sqrt{d_k}\big)}{\sum_{j=1}^{t}\exp\!\big(\mathbf q_t^\top\mathbf k_j/\sqrt{d_k}\big)}}_{\alpha_{t,i}\;=\;\text{attention weight}}\;\mathbf v_i$$</div>
+<dl class="symbols">
+<dt>\(\mathbf x_t\)</dt><dd>the token at position \(t\), as a vector of \(d\) numbers (its embedding)</dd>
+<dt>\(\mathbf q_t=\mathbf W_Q\mathbf x_t\)</dt><dd>query: &ldquo;what am I looking for?&rdquo; (\(\mathbf W_Q\) is a learned matrix)</dd>
+<dt>\(\mathbf k_i=\mathbf W_K\mathbf x_i\)</dt><dd>key of an earlier token: &ldquo;what do I contain?&rdquo;</dd>
+<dt>\(\mathbf v_i=\mathbf W_V\mathbf x_i\)</dt><dd>value: &ldquo;what I hand over if you pick me&rdquo;</dd>
+<dt>\(d_k\)</dt><dd>length of the key and query vectors; dividing by \(\sqrt{d_k}\) keeps the scores from growing just because vectors are long</dd>
+<dt>\(\exp(\cdot)/\sum\exp(\cdot)\)</dt><dd>the <em>softmax</em>: makes all weights positive and summing to 1, and exaggerates the largest score</dd>
+<dt>\(\alpha_{t,i}\)</dt><dd>how much token \(t\) attends to token \(i\)</dd>
+<dt>\(\mathbf o_t\)</dt><dd>the output at position \(t\): a weighted average of values</dd>
+</dl>
+<div class="numex"><b>Tiny example.</b> Query \(\mathbf q=(1,0)\); keys \(\mathbf k_1=(1,0)\), \(\mathbf k_2=(0,1)\), \(\mathbf k_3=(0.7,0.7)\); values \(v_1=10,\ v_2=0,\ v_3=-5\); \(\sqrt{d_k}=\sqrt2\approx1.414\).<br>
+Scores \(\mathbf q\cdot\mathbf k_i/\sqrt2\): \(0.707,\ 0,\ 0.495\). Exponentials: \(2.028,\ 1,\ 1.640\) (sum \(4.669\)).<br>
+Weights: \(\alpha=(0.434,\ 0.214,\ 0.351)\). Output: \(0.434\cdot10+0.214\cdot0+0.351\cdot(-5)\approx\mathbf{2.59}\).</div>
+
+<div class="widget" id="w-attn">
+  <div class="wh"><span class="wt">Attention playground</span><span class="wd">Drag the black query arrow. Turn up the sharpness to see softmax become a near-exact lookup.</span></div>
+  <div class="grid2">
+    <svg id="attnSvg" viewBox="0 0 360 360" role="img" aria-label="Draggable query vector and three key vectors"></svg>
+    <div>
+      <div class="controls"><label>Sharpness (scale on scores) <input type="range" id="attnTemp" min="0.2" max="8" step="0.1" value="1"><span class="val" id="attnTempV"></span></label></div>
+      <svg id="attnBars" viewBox="0 0 360 170" role="img" aria-label="Bar chart of attention weights"></svg>
+      <div class="readout" id="attnRead"></div>
+    </div>
+  </div>
+</div>
+
+<p><strong>Where the quadratic cost comes from.</strong> Token \(t\) computes \(t\) dot products. Over a sequence of length \(L\), the total is \(1+2+\dots+L\). Gauss&rsquo;s trick: write the sum forwards and backwards and add the two copies term by term:</p>
+<ol class="deriv">
+<li><div class="m">\(S = 1+2+\dots+L\)</div><div class="why">The total number of query&ndash;key comparisons.</div></li>
+<li><div class="m">\(S = L+(L-1)+\dots+1\)</div><div class="why">The same sum written backwards.</div></li>
+<li><div class="m">$$2S=\underbrace{(L+1)+\dots+(L+1)}_{L\ \text{terms}}=L(L+1)$$</div><div class="why">Add the two lines term by term: every pair sums to \(L+1\), and there are \(L\) pairs.</div></li>
+<li><div class="m">\(S=\dfrac{L(L+1)}{2}\approx\dfrac{L^2}{2}\)</div><div class="why">Divide by 2. For large \(L\), the \(+1\) is negligible: the cost is <strong>quadratic</strong>.</div></li>
+</ol>
+<div class="callout attn"><div class="lbl">What attention nails</div><p>Because of the exponential, if one key matches the query much better than the rest, its weight approaches 1 and the output is (almost exactly) that token&rsquo;s value. The notebook supports <strong>precise lookup of any past token</strong>. Keep this in mind: it is precisely the ability that will be hardest to recover later.</p></div>
+
+<h3 id="s-linear">5. Linear attention: the associativity trick</h3>
+<p><strong>Intuition.</strong> What if the similarity score were a plain dot product, with no exponential? Then the weighted sum over the whole past can be <em>pre-added</em> into one matrix, and the notebook collapses into a sticky note. This is the observation of Katharopoulos et al. (2020), &ldquo;Transformers are RNNs&rdquo;.</p>
+<p>Let&rsquo;s derive it. Write attention with a generic similarity function, \(\mathrm{sim}(\mathbf q,\mathbf k)\), and for clarity focus on the numerator (the denominator works the same way, and many modern models replace it with a normalization layer anyway).</p>
+<ol class="deriv">
+<li><div class="m">$$\mathbf o_t=\sum_{i\le t}\mathrm{sim}(\mathbf q_t,\mathbf k_i)\,\mathbf v_i$$</div><div class="why">Attention is a similarity-weighted sum of values. Softmax attention uses \(\mathrm{sim}=\exp(\mathbf q^\top\mathbf k/\sqrt{d_k})\), normalized.</div></li>
+<li><div class="m">$$=\sum_{i\le t}(\mathbf q_t^\top\mathbf k_i)\,\mathbf v_i$$</div><div class="why">Choose the plain dot product as the similarity. (Real models first apply a feature map \(\phi\) to \(\mathbf q,\mathbf k\); the algebra is identical.)</div></li>
+<li><div class="m">$$=\sum_{i\le t}\mathbf v_i\,(\mathbf k_i^\top\mathbf q_t)$$</div><div class="why">\(\mathbf q^\top\mathbf k=\mathbf k^\top\mathbf q\) is just a number, and a number can sit on either side of a vector.</div></li>
+<li><div class="m">$$=\sum_{i\le t}(\mathbf v_i\mathbf k_i^\top)\,\mathbf q_t$$</div><div class="why">Associativity: \(\mathbf v(\mathbf k^\top\mathbf q)=(\mathbf v\mathbf k^\top)\mathbf q\). Each term is now a <em>matrix</em> times \(\mathbf q_t\).</div></li>
+<li><div class="m">$$=\Big(\underbrace{\textstyle\sum_{i\le t}\mathbf v_i\mathbf k_i^\top}_{\mathbf S_t}\Big)\mathbf q_t=\mathbf S_t\,\mathbf q_t$$</div><div class="why">\(\mathbf q_t\) is the same in every term, so pull it out of the sum (the distributive law).</div></li>
+<li><div class="m">$$\mathbf S_t=\mathbf S_{t-1}+\mathbf v_t\mathbf k_t^\top$$</div><div class="why">The sum up to \(t\) is the sum up to \(t-1\) plus the newest term. <strong>That&rsquo;s an RNN</strong>, with a matrix as its hidden state.</div></li>
+</ol>
+<dl class="symbols">
+<dt>\(\mathbf S_t\)</dt><dd>the memory matrix (the &ldquo;sticky note&rdquo;), of size \(d_v\times d_k\); its size does not depend on \(t\)</dd>
+<dt>\(\mathbf v_t\mathbf k_t^\top\)</dt><dd>a <em>write</em>: store value \(\mathbf v_t\) &ldquo;under&rdquo; key \(\mathbf k_t\)</dd>
+<dt>\(\mathbf S_t\mathbf q_t\)</dt><dd>a <em>read</em>: ask the memory what is stored under (directions similar to) \(\mathbf q_t\)</dd>
+</dl>
+<div class="numex"><b>Tiny example.</b> Write \(\mathbf v_1=(2,3)\) under \(\mathbf k_1=(1,0)\) and \(\mathbf v_2=(5,-1)\) under \(\mathbf k_2=(0,1)\):
+\(\ \mathbf S=\begin{pmatrix}2&0\\3&0\end{pmatrix}+\begin{pmatrix}0&5\\0&-1\end{pmatrix}=\begin{pmatrix}2&5\\3&-1\end{pmatrix}\).
+Reading with \(\mathbf k_1\): \(\mathbf S\mathbf k_1=(2,3)=\mathbf v_1\) <span class="ok">&#10003;</span>. Now also write \(\mathbf v_3=(0,4)\) under the <em>non-orthogonal</em> key \(\mathbf k_3=(0.6,0.8)\). Then \(\mathbf S\mathbf k_1=(2,\ 5.4)\) <span class="err">&#10007;</span>: the second entry is off by \(2.4 = 4\times(\mathbf k_3\cdot\mathbf k_1)=4\times0.6\). That leftover is called <strong>crosstalk</strong>.</div>
+<p>In general, reading with a stored unit key \(\mathbf k_j\) returns the right value <em>plus</em> a crosstalk term:
+$$\mathbf S\mathbf k_j=\sum_i \mathbf v_i(\mathbf k_i^\top\mathbf k_j)=\mathbf v_j\underbrace{(\mathbf k_j^\top\mathbf k_j)}_{=1}+\underbrace{\sum_{i\ne j}\mathbf v_i\,(\mathbf k_i^\top\mathbf k_j)}_{\text{crosstalk}}.$$
+Crosstalk vanishes only if all keys are mutually perpendicular, and in \(d_k\) dimensions you can have at most \(d_k\) perpendicular directions. <strong>A \(d_k\)-dimensional key space can hold at most \(d_k\) clean memories.</strong> See it geometrically below. The memory here has \(d_k=2\) and scalar values, so \(\mathbf S\) is a point in the plane; reading with key \(\mathbf k\) means projecting that point onto \(\mathbf k\). The colored lines are the &ldquo;correct answer&rdquo; sets \(\{\mathbf S:\mathbf S\cdot\mathbf k_i=v_i\}\), and a memory recalls item \(i\) perfectly only if it sits on that line.</p>
+
+<div class="widget" id="w-mem1"></div>
+
+<div class="callout intuition"><div class="lbl">What linear attention fixed, and what it broke</div><p><strong>Fixed:</strong> generation costs \(\mathcal O(d_kd_v)\) per token, regardless of context length, and training can still be done in parallel. <strong>Broke:</strong> (1) nothing is ever forgotten, since \(\mathbf S\) only accumulates; (2) memories interfere through crosstalk; (3) without the exponential there is no sharp lookup. Empirically, plain linear attention trailed Transformers on language, especially on recall.</p></div>
+
+<h3 id="s-bucket">6. The leaky bucket: continuous-time state space models</h3>
+<p>Now a completely different route to the sticky note, from physics and signal processing. It looks unrelated at first; by Section 11 you&rsquo;ll see it is the same equation.</p>
+<p><strong>Intuition.</strong> A bucket with a small hole. Water flows in at a rate set by the input \(u(t)\) and leaks out at a rate proportional to the current water level \(h(t)\). The level is a <em>memory</em> of past inflow: recent inflow counts a lot, older inflow has partly leaked away. The size of the hole sets how long the bucket remembers.</p>
+<div class="eqbox"><div class="cap">A one-dimensional state space model</div>
+$$h'(t)=a\,h(t)+b\,u(t),\qquad y(t)=c\,h(t)$$</div>
+<dl class="symbols">
+<dt>\(t\)</dt><dd>continuous time</dd>
+<dt>\(u(t)\)</dt><dd>input signal (one channel of the token sequence)</dd>
+<dt>\(h(t)\)</dt><dd>state: the water level, i.e. the memory</dd>
+<dt>\(h'(t)\)</dt><dd>how fast the level is changing right now</dd>
+<dt>\(a<0\)</dt><dd>leak rate: the more negative, the faster it forgets</dd>
+<dt>\(b\)</dt><dd>input gain: how strongly the input fills the bucket</dd>
+<dt>\(c\)</dt><dd>readout gain: how the level becomes the output \(y\)</dd>
+</dl>
+<div class="numex"><b>Tiny example.</b> With \(a=-0.5\) and no input, a level of \(h=4\) gives \(h'=-0.5\times4=-2\): it drops 2 units per second. At \(h=1\) it drops only 0.5 per second. A fuller bucket leaks faster, which is why the level decays <em>exponentially</em> rather than linearly.</div>
+
+<h4>Step A: no input, pure forgetting</h4>
+<ol class="deriv">
+<li><div class="m">\(h'(t)=a\,h(t)\)</div><div class="why">Set \(u=0\). The change is proportional to the level.</div></li>
+<li><div class="m">Guess \(h(t)=h(0)\,e^{at}\)</div><div class="why">We need a function whose derivative is \(a\) times itself; \(e^{at}\) is exactly that.</div></li>
+<li><div class="m">\(h'(t)=h(0)\,a\,e^{at}=a\,h(t)\) &#10003;</div><div class="why">Chain rule: \(\frac{d}{dt}e^{at}=a\,e^{at}\). The guess satisfies the equation, and at \(t=0\) it gives \(h(0)\).</div></li>
+<li><div class="m">\(e^{a\,t_{1/2}}=\tfrac12\ \Rightarrow\ t_{1/2}=\dfrac{\ln 2}{|a|}\)</div><div class="why"><strong>Half-life</strong>: take \(\ln\) of both sides, so \(a\,t_{1/2}=-\ln2\), and \(a<0\). For \(a=-0.5\), memory halves every \(1.39\) s.</div></li>
+</ol>
+
+<h4>Step B: with input, using the integrating-factor trick</h4>
+<ol class="deriv">
+<li><div class="m">\(h'(t)-a\,h(t)=b\,u(t)\)</div><div class="why">Move the leak term to the left.</div></li>
+<li><div class="m">$$\frac{d}{dt}\Big[e^{-at}h(t)\Big]=e^{-at}h'(t)-a\,e^{-at}h(t)$$</div><div class="why">Product rule on \(e^{-at}\cdot h(t)\), using \(\frac{d}{dt}e^{-at}=-a\,e^{-at}\).</div></li>
+<li><div class="m">$$\frac{d}{dt}\Big[e^{-at}h\Big]=e^{-at}\big(h'-a h\big)=e^{-at}\,b\,u(t)$$</div><div class="why">Factor out \(e^{-at}\) and substitute line 1. The left side is now a single derivative, which is why \(e^{-at}\) is called the integrating factor.</div></li>
+<li><div class="m">$$e^{-at_1}h(t_1)-e^{-at_0}h(t_0)=\int_{t_0}^{t_1}e^{-as}\,b\,u(s)\,ds$$</div><div class="why">Integrate both sides from \(t_0\) to \(t_1\). The integral of a derivative is the change in the function.</div></li>
+<li><div class="m">$$h(t_1)=e^{a(t_1-t_0)}h(t_0)+\int_{t_0}^{t_1}e^{a(t_1-s)}\,b\,u(s)\,ds$$</div><div class="why">Multiply through by \(e^{at_1}\). In words: <em>old level, decayed</em> plus <em>every bit of inflow, each decayed by how long ago it arrived</em>.</div></li>
+</ol>
+
+<h4>Step C: discretize (tokens arrive in steps of size \(\Delta\))</h4>
+<p>Tokens are discrete, so we assume the input is constant during each step: \(u(s)=u_k\) for \(s\in[t_{k-1},t_k]\), with \(t_k-t_{k-1}=\Delta\). This assumption is called the <strong>zero-order hold</strong> (ZOH).</p>
+<ol class="deriv">
+<li><div class="m">$$h_k=e^{a\Delta}h_{k-1}+b\,u_k\int_{t_{k-1}}^{t_k}e^{a(t_k-s)}\,ds$$</div><div class="why">Apply Step B over one step; \(u_k\) is constant, so it comes out of the integral.</div></li>
+<li><div class="m">$$\int_{t_{k-1}}^{t_k}e^{a(t_k-s)}ds=\int_0^{\Delta}e^{a\tau}d\tau$$</div><div class="why">Substitute \(\tau=t_k-s\): then \(d\tau=-ds\), and the limits \(s=t_{k-1},\,t_k\) become \(\tau=\Delta,\,0\). The minus sign flips the limits back.</div></li>
+<li><div class="m">$$=\Big[\tfrac{1}{a}e^{a\tau}\Big]_0^{\Delta}=\frac{e^{a\Delta}-1}{a}$$</div><div class="why">The antiderivative of \(e^{a\tau}\) is \(e^{a\tau}/a\); evaluate at \(\Delta\) and at \(0\).</div></li>
+<li><div class="m">$$\boxed{h_k=\bar a\,h_{k-1}+\bar b\,u_k}$$$$\bar a=e^{a\Delta},\qquad \bar b=\frac{e^{a\Delta}-1}{a}\,b$$</div><div class="why">A <strong>linear recurrence</strong>, the exact discrete version of the bucket. The bars mean &ldquo;discretized&rdquo;.</div></li>
+</ol>
+<div class="numex"><b>Tiny example.</b> \(a=-1,\ b=1,\ \Delta=0.1\): \(\ \bar a=e^{-0.1}=0.905\) and \(\bar b=(0.905-1)/(-1)=0.095\). Each step keeps 90.5% of the memory and mixes in 9.5% of the new input. Sanity check: for small \(\Delta\), \(e^{a\Delta}\approx1+a\Delta\), so \(\bar b\approx\Delta b=0.1\). Close!</div>
+
+<div class="widget" id="w-bucket">
+  <div class="wh"><span class="wt">Leaky-bucket simulator</span><span class="wd">Pick an input, then change the leak rate \(a\) and the step size \(\Delta\).</span></div>
+  <div class="controls">
+    <div class="seg" id="bucketPreset"><button data-p="pulse" class="on">One pulse</button><button data-p="two">Two pulses</button><button data-p="step">Step</button><button data-p="noise">Noisy</button></div>
+    <label>Leak \(a\) <input type="range" id="bucketA" min="-3" max="-0.05" step="0.01" value="-1"><span class="val" id="bucketAv"></span></label>
+    <label>Step \(\Delta\) <input type="range" id="bucketD" min="0.02" max="1" step="0.01" value="0.1"><span class="val" id="bucketDv"></span></label>
+  </div>
+  <div class="tiles" id="bucketTiles"></div>
+  <svg id="bucketSvg" viewBox="0 0 760 250" role="img" aria-label="Input bars and state line over 60 steps"></svg>
+  <div class="legend"><span><i class="sq" style="background:var(--axis)"></i>input \(u_k\)</span><span><i style="background:var(--ssm)"></i>state \(h_k\) (scaled)</span></div>
+</div>
+<p><strong>From one bucket to many.</strong> Real SSM layers use a state vector \(\mathbf h\in\mathbb R^N\) and matrices: \(\mathbf h'=\mathbf A\mathbf h+\mathbf Bu\), \(y=\mathbf C\mathbf h\). The derivation is identical with the <em>matrix exponential</em>: \(\bar{\mathbf A}=e^{\Delta\mathbf A}\) and \(\bar{\mathbf B}=\mathbf A^{-1}(e^{\Delta\mathbf A}-\mathbf I)\mathbf B\). When \(\mathbf A\) is <em>diagonal</em>, which is what almost every modern model uses, the matrix exponential is just \(e^{\Delta\lambda_n}\) on each diagonal entry. So an \(N\)-dimensional diagonal SSM is simply <strong>\(N\) independent buckets with different leak rates</strong>, some fast and some slow, read out together by \(\mathbf C\).</p>
+
+<h3 id="s-conv">7. The same model, two ways: recurrence = convolution</h3>
+<p>Unroll the recurrence from an empty bucket \(h_0=0\) (take \(c=1\)):</p>
+<ol class="deriv">
+<li><div class="m">\(h_1=\bar b\,u_1\)</div><div class="why">First step: nothing to decay yet.</div></li>
+<li><div class="m">\(h_2=\bar a\bar b\,u_1+\bar b\,u_2\)</div><div class="why">Old content is multiplied by \(\bar a\), and the new input is added.</div></li>
+<li><div class="m">\(h_3=\bar a^2\bar b\,u_1+\bar a\bar b\,u_2+\bar b\,u_3\)</div><div class="why">Each input is decayed once per step since it arrived.</div></li>
+<li><div class="m">$$y_k=\sum_{j=1}^{k}\underbrace{c\,\bar a^{\,k-j}\,\bar b}_{\bar K_{k-j}}\,u_j$$</div><div class="why">The pattern: the input from \(k-j\) steps ago is weighted by \(\bar K_{k-j}=c\bar a^{k-j}\bar b\).</div></li>
+</ol>
+<p>That last line is a <strong>convolution</strong>: slide a fixed kernel \(\bar{\mathbf K}=(c\bar b,\ c\bar a\bar b,\ c\bar a^2\bar b,\dots)\) along the input. With the numbers above, \(\bar{\mathbf K}=(0.095,\ 0.086,\ 0.078,\ \dots)\). Why care? A recurrence must be computed one step after another, but a convolution can compute every output <em>in parallel</em>, in \(\mathcal O(L\log L)\) with the Fast Fourier Transform. So an SSM trains like a CNN (parallel) and generates like an RNN (constant memory). With several buckets the kernel is a <em>sum</em> of decaying exponentials; with complex-valued \(\lambda\) (a rotating bucket, if you like) the exponentials also oscillate. Build a kernel and check that both computations agree:</p>
+<div class="widget" id="w-kernel">
+  <div class="wh"><span class="wt">Kernel builder</span><span class="wd">Mix a fast bucket, a slow bucket and an oscillating pair. The output is computed twice, as a recurrence and as a convolution.</span></div>
+  <div class="controls">
+    <label>Fast leak \(\bar a_1\) <input type="range" id="kA1" min="0.3" max="0.95" step="0.01" value="0.7"><span class="val" id="kA1v"></span></label>
+    <label>Slow leak \(\bar a_2\) <input type="range" id="kA2" min="0.8" max="0.995" step="0.001" value="0.95"><span class="val" id="kA2v"></span></label>
+    <label>Oscillation \(\theta\) <input type="range" id="kTh" min="0" max="1.2" step="0.01" value="0.45"><span class="val" id="kThv"></span></label>
+  </div>
+  <div class="grid2">
+    <div><div class="small sans" style="margin-bottom:4px">Kernel \(\bar K_k\) (weight on the input \(k\) steps ago)</div><svg id="kernSvg" viewBox="0 0 360 200" role="img" aria-label="Kernel bars"></svg></div>
+    <div><div class="small sans" style="margin-bottom:4px">Output on a random input: recurrence (line) vs convolution (dots)</div><svg id="kernOut" viewBox="0 0 360 200" role="img" aria-label="Output computed two ways"></svg></div>
+  </div>
+  <div class="readout" id="kernRead"></div>
+</div>
+<div class="callout warn"><div class="lbl">The catch, and the bottleneck of Generation&nbsp;I</div><p>The kernel is <strong>the same for every input</strong>: the model is <em>linear time-invariant</em> (LTI). It blurs every token with the same fixed filter. That is great for audio, but language needs content-dependent decisions such as &ldquo;remember this name, ignore that filler word&rdquo;. A fixed kernel cannot make them. Keep this in mind for Section 9.</p></div>
+
+<h3 id="s-hippo">8. HiPPO: what should the bucket remember?</h3>
+<p>A random \(\mathbf A\) forgets quickly or blows up. The question HiPPO (Gu et al., 2020) asked is beautiful: <em>if you must summarize an ever-growing history with just \(N\) numbers, what is the best summary?</em> Its answer: the \(N\) coefficients of the best polynomial approximation of the history so far. Remarkably, those coefficients evolve according to a linear ODE, i.e. a bucket equation with a very specific \(\mathbf A\).</p>
+<p>The simplest case, \(N=1\), shows why. The best constant approximation of a curve \(f\) on \([0,t]\) is its average. Let&rsquo;s show the average obeys a bucket equation:</p>
+<ol class="deriv">
+<li><div class="m">$$c(t)=\frac1t\int_0^t f(s)\,ds$$</div><div class="why">The running average of the history: our one-number memory.</div></li>
+<li><div class="m">$$c'(t)=-\frac{1}{t^2}\int_0^t f(s)\,ds+\frac1t\,f(t)$$</div><div class="why">Product rule on \(\frac1t\times\int_0^t f\): the derivative of \(\frac1t\) is \(-\frac1{t^2}\), and by the fundamental theorem of calculus the derivative of \(\int_0^t f\) is \(f(t)\).</div></li>
+<li><div class="m">$$c'(t)=-\frac1t\,c(t)+\frac1t\,f(t)$$</div><div class="why">Recognize \(\frac1{t^2}\int_0^t f=\frac1t c(t)\).</div></li>
+</ol>
+<p>That is exactly \(h'=a\,h+b\,u\), with \(a=-\frac1t\) and \(b=\frac1t\). With \(N\) Legendre polynomials, the same calculation gives \(\mathbf c'(t)=-\frac1t\mathbf A\mathbf c(t)+\frac1t\mathbf B f(t)\) with a specific lower-triangular matrix (indices from 0: \(A_{nk}=\sqrt{2n+1}\sqrt{2k+1}\) for \(n>k\), \(A_{nn}=n+1\), and \(B_n=\sqrt{2n+1}\)). This matrix, plugged into the SSM, gave S4 its long memory. Here is what &ldquo;remembering the past as \(N\) polynomial coefficients&rdquo; looks like:</p>
+<div class="widget" id="w-hippo">
+  <div class="wh"><span class="wt">Memory as compression</span><span class="wd">Gray: the full history up to time \(t\). Blue: the best reconstruction from only \(N\) numbers.</span></div>
+  <div class="controls">
+    <label>State size \(N\) <input type="range" id="hipN" min="1" max="32" step="1" value="8"><span class="val" id="hipNv"></span></label>
+    <label>Time \(t\) <input type="range" id="hipT" min="1" max="10" step="0.05" value="6"><span class="val" id="hipTv"></span></label>
+  </div>
+  <svg id="hipSvg" viewBox="0 0 760 240" role="img" aria-label="Signal history and its polynomial reconstruction"></svg>
+  <div class="legend"><span><i style="background:var(--muted)"></i>history \(f(s),\ s\le t\)</span><span><i style="background:var(--ssm)"></i>reconstruction from \(N\) coefficients</span></div>
+  <div class="readout" id="hipRead"></div>
+</div>
+<p>Notice two things. With small \(N\) the reconstruction keeps the <em>gist</em>, a blurred version, and the blur spreads over the whole history uniformly. And as \(t\) grows with \(N\) fixed, each coefficient has to cover more history, so detail is lost. A fixed-size state can only ever be a <strong>lossy compression</strong> of the past. That theme returns in Section 14.</p>
+<p>The story of Generation I in brief: S4 (2022) made this practical with clever linear algebra and was the first model to solve Path-X, a 16,384-step task where every earlier model performed at chance. Then came the simplifications: a <strong>diagonal</strong> \(\mathbf A\) works just as well (DSS, S4D, 2022), and the LRU (2023) showed you don&rsquo;t even need the ODE, only a well-initialized diagonal linear recurrence with eigenvalues near 1. The ODE turned out to be a superb <em>initialization recipe</em> rather than the secret sauce.</p>
+</section>
+
+<section>
+<h3 id="s-select">9. Selectivity: Mamba lets the token set the clock</h3>
+<p><strong>Intuition.</strong> In the bucket, the step size \(\Delta\) is how much &ldquo;time&rdquo; passes while a token is being read. Mamba (Gu &amp; Dao, 2023) makes \(\Delta\) <em>depend on the token</em>. An important token gets a large \(\Delta\): a long stretch of time passes, the old water drains, and this token floods in. A filler token gets a tiny \(\Delta\): time almost stands still, so the memory is preserved and the token barely registers. The model learns to <strong>choose what to remember</strong>.</p>
+<div class="eqbox"><div class="cap">Selective state space model (Mamba), one channel</div>
+$$\begin{gathered}\Delta_t=\mathrm{softplus}(\mathbf w^\top\mathbf x_t+b_\Delta),\qquad \mathbf B_t=\mathbf W_B\mathbf x_t,\qquad \mathbf C_t=\mathbf W_C\mathbf x_t\\[4pt] \mathbf h_t=e^{\Delta_t\mathbf A}\,\mathbf h_{t-1}+\bar{\mathbf B}_t\,x_t,\qquad y_t=\mathbf C_t^\top\mathbf h_t\end{gathered}$$</div>
+<dl class="symbols">
+<dt>\(\mathrm{softplus}(z)=\ln(1+e^z)\)</dt><dd>a smooth, always-positive version of \(\max(0,z)\), which keeps \(\Delta_t>0\)</dd>
+<dt>\(\Delta_t\)</dt><dd>the token-dependent step: how much this token &ldquo;counts&rdquo;</dd>
+<dt>\(\mathbf B_t,\ \mathbf C_t\)</dt><dd>also token-dependent: <em>where</em> in the state to write, and <em>what</em> to read out</dd>
+<dt>\(\mathbf A\)</dt><dd>diagonal, negative, fixed (initialized as \(-1,-2,\dots,-N\)); Mamba uses \(N=16\) buckets per channel</dd>
+<dt>\(\bar{\mathbf B}_t\)</dt><dd>ZOH formula as before; in practice \(\approx\Delta_t\mathbf B_t\), using \(e^{a\Delta}\approx1+a\Delta\)</dd>
+</dl>
+<h4>Why \(\Delta_t\) is a &ldquo;remember / ignore&rdquo; dial</h4>
+<ol class="deriv">
+<li><div class="m">$$\Delta_t\to0:\qquad \begin{aligned}e^{\Delta_t a}&\to e^0=1\\ \bar b_t=\tfrac{e^{\Delta_t a}-1}{a}\,b&\to\tfrac{1-1}{a}\,b=0\end{aligned}$$</div><div class="why">Tiny step: the old memory is kept completely and the input adds nothing. <strong>Token ignored.</strong></div></li>
+<li><div class="m">$$\Delta_t\to\infty:\qquad \begin{aligned}e^{\Delta_t a}&\to0\\ \bar b_t&\to\tfrac{0-1}{a}\,b=\tfrac{b}{|a|}\end{aligned}$$</div><div class="why">Since \(a<0\), a huge step drains the old memory, and the state becomes proportional to the current input. <strong>Memory reset to this token.</strong></div></li>
+</ol>
+<h4>The punchline: selectivity <em>is</em> gating</h4>
+<p>Take the simplest case: one bucket with \(a=-1\) and \(b=1\). Then \(\bar a_t=e^{-\Delta_t}\) and \(\bar b_t=1-e^{-\Delta_t}\). Write \(\Delta_t=\mathrm{softplus}(z_t)\):</p>
+<ol class="deriv">
+<li><div class="m">$$e^{-\Delta_t}=e^{-\ln(1+e^{z_t})}=\frac{1}{1+e^{z_t}}$$</div><div class="why">\(e^{-\ln y}=1/y\), because \(e\) and \(\ln\) undo each other.</div></li>
+<li><div class="m">$$\begin{aligned}1-e^{-\Delta_t}&=1-\frac1{1+e^{z_t}}=\frac{e^{z_t}}{1+e^{z_t}}\\&=\frac{1}{1+e^{-z_t}}=\sigma(z_t)\end{aligned}$$</div><div class="why">Common denominator, then divide the top and bottom by \(e^{z_t}\). That is the logistic <strong>sigmoid</strong> \(\sigma\).</div></li>
+<li><div class="m">$$h_t=\big(1-\sigma(z_t)\big)\,h_{t-1}+\sigma(z_t)\,x_t$$</div><div class="why">Substitute both into \(h_t=\bar a_th_{t-1}+\bar b_tx_t\). This is exactly a <strong>gated RNN</strong>, the core idea of LSTMs and GRUs, now derived from a discretized ODE.</div></li>
+</ol>
+<div class="numex"><b>Tiny example.</b> If \(z_t=-3\), then \(\sigma=0.047\): keep 95.3% of the memory and mostly ignore the token. If \(z_t=+3\), then \(\sigma=0.953\): mostly overwrite the memory with the token.</div>
+
+<div class="widget" id="w-select">
+  <div class="wh"><span class="wt">Remember the password</span><span class="wd">One bucket reads the sentence. How much of the memory at the final &ldquo;?&rdquo; comes from each token?</span></div>
+  <div class="controls">
+    <label>Fixed step \(\Delta\) (LTI) <input type="range" id="selD" min="0.02" max="1" step="0.01" value="0.15"><span class="val" id="selDv"></span></label>
+    <label>Selectivity strength <input type="range" id="selS" min="0" max="1.6" step="0.05" value="1"><span class="val" id="selSv"></span></label>
+  </div>
+  <div class="tiles" id="selTiles"></div>
+  <svg id="selSvg" viewBox="0 0 760 270" role="img" aria-label="Token contributions to the final memory under time-invariant and selective models"></svg>
+  <div class="legend"><span><i class="sq" style="background:var(--muted)"></i>Time-invariant (same \(\Delta\) for every token)</span><span><i class="sq" style="background:var(--ssm)"></i>Selective (\(\Delta_t\) depends on the token)</span></div>
+</div>
+<p>One bucket can hold one fact. Mamba has thousands of channels, each with \(N=16\) buckets, and the token-dependent \(\mathbf B_t\) decides <em>which</em> buckets a token is written into, so different facts can land in different places. That is selectivity at scale. The result was striking: Mamba matched Transformers of twice its size at the 3B scale and generated with 5&times; higher throughput.</p>
+
+<h3 id="s-scan">10. The price of selectivity, and the parallel scan</h3>
+<p>Here is the snag. Once \(\bar a_t\) depends on the token, there is no single kernel any more, so the convolution trick of Section 7 is gone. Must we go back to a slow step-by-step loop? No. Each step is an <strong>affine map</strong>, \(h\mapsto a_th+b_t\) (with \(b_t=\bar b_tx_t\)), and affine maps can be combined <em>before</em> we know \(h\):</p>
+<ol class="deriv">
+<li><div class="m">$$h\ \xrightarrow{\text{step 1}}\ a_1h+b_1\ \xrightarrow{\text{step 2}}\ a_2(a_1h+b_1)+b_2$$</div><div class="why">Apply step 1, then step 2.</div></li>
+<li><div class="m">\(=(a_2a_1)\,h+(a_2b_1+b_2)\)</div><div class="why">Expand. Two steps together are again a single affine map.</div></li>
+<li><div class="m">$$(a_1,b_1)\bullet(a_2,b_2)=(a_2a_1,\ a_2b_1+b_2)$$</div><div class="why">So define a &ldquo;combine&rdquo; operation on pairs.</div></li>
+<li><div class="m">\(\big((x\bullet y)\bullet z\big)=\big(x\bullet(y\bullet z)\big)\)</div><div class="why"><strong>Associativity</strong>: the grouping doesn&rsquo;t matter. Check with \(x=(0.5,1),\ y=(2,0),\ z=(1,3)\): both sides give \((1,5)\).</div></li>
+</ol>
+<p>Associativity means we can combine neighbors in a <em>tree</em>: pairs, then pairs of pairs, and so on. All \(L\) prefix results are ready after about \(\log_2L\) rounds instead of \(L\) sequential steps (Blelloch, 1990; Martin &amp; Cundy, 2018). Watch it happen:</p>
+<div class="widget" id="w-scan">
+  <div class="wh"><span class="wt">Parallel scan, step by step</span><span class="wd">Each box holds a pair \((a,b)\). In round \(r\), box \(i\) combines with box \(i-2^{r-1}\). After \(\log_2 8=3\) rounds, every box holds \(h_i\) (the \(b\) part).</span></div>
+  <div class="controls"><button class="btn" id="scanStep">Next round &#9654;</button><button class="btn" id="scanReset">Reset</button><button class="btn" id="scanNew">New random input</button><span class="small" id="scanInfo"></span></div>
+  <svg id="scanSvg" viewBox="0 0 760 330" role="img" aria-label="Parallel scan rounds"></svg>
+  <div class="readout" id="scanRead"></div>
+</div>
+<p>Mamba&rsquo;s implementation fuses this scan into one GPU kernel that keeps the big expanded state (\(L\times d\times N\)) in fast on-chip memory and never writes it out. That engineering made selectivity practical.</p>
+
+<h3 id="s-ssd">11. Mamba-2: the moment SSMs and attention turned out to be the same thing</h3>
+<p>Mamba-2 (Dao &amp; Gu, 2024) simplifies the transition to a single number per head, \(\bar{\mathbf A}_t=a_t\mathbf I\), and then unrolls the recurrence. Something wonderful appears.</p>
+<ol class="deriv">
+<li><div class="m">\(\mathbf h_t=a_t\mathbf h_{t-1}+\mathbf B_tx_t,\qquad y_t=\mathbf C_t^\top\mathbf h_t\)</div><div class="why">Scalar decay \(a_t\in(0,1)\); \(\mathbf B_t,\mathbf C_t\) are token-dependent vectors.</div></li>
+<li><div class="m">$$\mathbf h_t=\sum_{s\le t}\Big(\prod_{r=s+1}^{t}a_r\Big)\mathbf B_s\,x_s$$</div><div class="why">Unroll as in Section 7: input \(s\) is multiplied by every decay that happened after it.</div></li>
+<li><div class="m">$$y_t=\sum_{s\le t}\underbrace{(\mathbf C_t^\top\mathbf B_s)}_{\text{like }\mathbf q_t^\top\mathbf k_s}\ \underbrace{\Big(\prod_{r=s+1}^{t}a_r\Big)}_{L_{ts}}\ x_s$$</div><div class="why">Apply \(\mathbf C_t^\top\) and pull the scalars around.</div></li>
+<li><div class="m">$$\mathbf y=\big(\mathbf L\circ\mathbf C\mathbf B^\top\big)\,\mathbf x$$</div><div class="why">In matrix form (\(\circ\) is the entry-wise product): a query&ndash;key score matrix, multiplied entry-wise by a mask \(\mathbf L\), applied to the values. <strong>That is the shape of attention.</strong></div></li>
+<li><div class="m">\(a_r\equiv1\ \Rightarrow\ L_{ts}=1\) for \(t\ge s\)</div><div class="why">With no decay, \(\mathbf L\) is the plain causal mask: this is exactly linear attention with \(\mathbf q\leftrightarrow\mathbf C\), \(\mathbf k\leftrightarrow\mathbf B\), \(\mathbf v\leftrightarrow x\).</div></li>
+<li><div class="m">$$L_{ts}=\frac{a_1a_2\cdots a_t}{a_1a_2\cdots a_s}=\frac{\Lambda_t}{\Lambda_s}$$</div><div class="why">The common factors cancel, leaving \(a_{s+1}\cdots a_t\). Every block below the diagonal is (column of \(\Lambda_t\)) &times; (row of \(1/\Lambda_s\)): <strong>rank one</strong>.</div></li>
+</ol>
+<p>This is <strong>structured state space duality</strong>: an SSM is linear attention with a decaying, structured mask. The rank-one structure gives a fast hybrid algorithm. Cut the sequence into chunks; inside a chunk, compute the small attention-like matrix with dense matrix multiplications (what GPUs&rsquo; tensor cores are built for); between chunks, pass the compact state. The resulting layer is 2&ndash;8&times; faster than Mamba&rsquo;s scan and allows states 8&times; larger or more (typically \(N=64\) or \(128\)). Explore the mask:</p>
+<div class="widget" id="w-ssd">
+  <div class="wh"><span class="wt">Mask explorer</span><span class="wd">Click a token&rsquo;s decay bar to change \(a_t\) (drag up and down). Hover a cell to see its product.</span></div>
+  <div class="controls">
+    <div class="seg" id="ssdPreset"><button data-p="lin">Linear attention (all 1)</button><button data-p="ret">RetNet (fixed &gamma;)</button><button data-p="m2" class="on">Mamba-2 (selective)</button></div>
+    <label><input type="checkbox" id="ssdChunk" checked> show chunks (Q=4)</label>
+  </div>
+  <svg id="ssdSvg" viewBox="0 0 760 375" role="img" aria-label="Decay mask heatmap with per-token decay controls"></svg>
+</div>
+<div class="callout aha"><div class="lbl">Why this matters</div><p>The &ldquo;Transformers vs. SSMs&rdquo; debate dissolved here. Both are operators of the form \((\text{mask}\circ\mathbf Q\mathbf K^\top)\mathbf V\), and the only difference is the mask: dense and softmax-normalized for attention, decaying and low-rank for SSMs. There is also a trade-off to notice. A scalar decay is <em>less</em> expressive than Mamba-1&rsquo;s per-channel decay, but it runs on tensor cores and so affords much bigger states. <strong>Hardware fit has quietly become as important as expressivity.</strong></p></div>
+
+<h3 id="s-delta">12. The delta rule: memory that corrects itself</h3>
+<p><strong>The problem with decay.</strong> A decay \(a_t\) shrinks <em>every</em> stored memory at once. Imagine a phone book where the only way to change Alice&rsquo;s number is to fade every entry a little and then write the new number on top. The old number for Alice is still in there, faded, and it pollutes the read (the crosstalk from Section 5). What we want is to <em>erase Alice&rsquo;s old entry and write the new one</em>, leaving Bob alone.</p>
+<p><strong>Intuition.</strong> Before writing, ask the memory what it currently returns for this key. Then write only the <em>correction</em>: the difference between what you want and what you got. That is the 1960 Widrow&ndash;Hoff &ldquo;delta rule&rdquo;, brought to linear Transformers by Schlag et al. (2021) and made fast by DeltaNet (Yang et al., 2024). The cleanest way to derive it is to treat the memory as a tiny regression model trained online, one gradient step per token.</p>
+<ol class="deriv">
+<li><div class="m">$$\ell(\mathbf S)=\tfrac12\big\lVert\mathbf S\mathbf k_t-\mathbf v_t\big\rVert^2$$</div><div class="why">The goal: reading key \(\mathbf k_t\) should return \(\mathbf v_t\). Measure the squared error.</div></li>
+<li><div class="m">\(e_i=\sum_j S_{ij}k_j-v_i,\qquad \ell=\tfrac12\sum_i e_i^2\)</div><div class="why">Write it entry by entry. \(\mathbf e=\mathbf S\mathbf k_t-\mathbf v_t\) is the error vector.</div></li>
+<li><div class="m">$$\frac{\partial\ell}{\partial S_{ij}}=e_i\cdot\frac{\partial e_i}{\partial S_{ij}}=e_i\,k_j$$</div><div class="why">Chain rule: the derivative of \(\tfrac12e_i^2\) is \(e_i\) times the derivative of \(e_i\). Only the term \(S_{ij}k_j\) in \(e_i\) contains \(S_{ij}\), and its derivative is \(k_j\).</div></li>
+<li><div class="m">$$\nabla_{\mathbf S}\,\ell=\mathbf e\,\mathbf k_t^\top=(\mathbf S\mathbf k_t-\mathbf v_t)\,\mathbf k_t^\top$$</div><div class="why">The matrix with entries \(e_ik_j\) is exactly the outer product \(\mathbf e\mathbf k^\top\).</div></li>
+<li><div class="m">$$\mathbf S_t=\mathbf S_{t-1}-\beta_t\,(\mathbf S_{t-1}\mathbf k_t-\mathbf v_t)\,\mathbf k_t^\top$$</div><div class="why">One gradient-descent step with learning rate \(\beta_t\in(0,1]\), which the model also predicts per token.</div></li>
+<li><div class="m">$$\boxed{\mathbf S_t=\mathbf S_{t-1}\big(\mathbf I-\beta_t\mathbf k_t\mathbf k_t^\top\big)+\beta_t\,\mathbf v_t\mathbf k_t^\top}$$</div><div class="why">Expand: \(\mathbf S\mathbf k\mathbf k^\top\) groups as \(\mathbf S(\mathbf k\mathbf k^\top)\). This is the <strong>DeltaNet</strong> update, in the same &ldquo;transition + write&rdquo; form as everything else.</div></li>
+</ol>
+<p>Now check that it really overwrites. Assume a unit-length key, \(\mathbf k_t^\top\mathbf k_t=1\):</p>
+<ol class="deriv">
+<li><div class="m">\(\mathbf S_t\mathbf k_t=\mathbf S_{t-1}\mathbf k_t-\beta_t(\mathbf S_{t-1}\mathbf k_t-\mathbf v_t)(\mathbf k_t^\top\mathbf k_t)\)</div><div class="why">Multiply line 5 above by \(\mathbf k_t\).</div></li>
+<li><div class="m">\(=(1-\beta_t)\,\mathbf S_{t-1}\mathbf k_t+\beta_t\,\mathbf v_t\)</div><div class="why">Use \(\mathbf k_t^\top\mathbf k_t=1\) and collect terms: a blend of the old answer and the new value.</div></li>
+<li><div class="m">$$\begin{aligned}\beta_t=1&\ \Rightarrow\ \mathbf S_t\mathbf k_t=\mathbf v_t\\ \mathbf u\perp\mathbf k_t&\ \Rightarrow\ \mathbf S_t\mathbf u=\mathbf S_{t-1}\mathbf u\end{aligned}$$</div><div class="why">Full overwrite for this key, while directions perpendicular to \(\mathbf k_t\) are untouched (since \(\mathbf k_t^\top\mathbf u=0\)). <strong>Erase Alice, leave Bob.</strong></div></li>
+</ol>
+<div class="numex"><b>Tiny example</b> (scalar values, \(\mathbf S\) is a row). Memory \(\mathbf S=(2,1)\), key \(\mathbf k=(1,0)\), new value \(v=5\). Current answer: \(\mathbf S\mathbf k=2\), so the error is \(2-5=-3\). Delta update with \(\beta=1\): \(\mathbf S\leftarrow(2,1)-(-3)\cdot(1,0)=(5,1)\). Now \(\mathbf S\mathbf k=5\) <span class="ok">&#10003;</span>, and the other direction \((0,1)\) still reads \(1\) <span class="ok">&#10003;</span>. Linear attention would instead add \(v\mathbf k^\top\): \((2,1)+(5,0)=(7,1)\), which reads \(7\) <span class="err">&#10007;</span>.</div>
+
+<div class="widget" id="w-mem2"></div>
+<p>In the plane picture, the delta rule (with \(\beta=1\)) jumps <em>perpendicularly</em> onto the latest key&rsquo;s line: the smallest change to memory that makes the new fact true. (Numerical analysts know this as the Kaczmarz method.) Additive writes just pile vectors on top of each other. Try the &ldquo;Overwrite A&rdquo; and &ldquo;Three keys in 2-D&rdquo; scenarios: with three facts in a 2-D memory, no point lies on all three lines, so no update rule can satisfy them all. Remember that for Section 14.</p>
+
+<h4>The same lens explains the whole family</h4>
+<p>Look back at linear attention: \(\mathbf S_t=\mathbf S_{t-1}+\mathbf v_t\mathbf k_t^\top\) is <em>also</em> one gradient step, on the objective \(\ell(\mathbf S)=-\mathbf v_t^\top\mathbf S\mathbf k_t\), whose gradient is \(-\mathbf v_t\mathbf k_t^\top\). Linear attention optimizes &ldquo;be <em>correlated</em> with the values&rdquo;, which has no notion of error and is unbounded. The delta rule optimizes &ldquo;be <em>correct</em>&rdquo;. Everything else is a variation:</p>
+<div class="widget" style="padding:14px 18px">
+<table class="cmp">
+<thead><tr><th>Model</th><th>Memory</th><th>Objective the update descends</th><th>Extra</th></tr></thead>
+<tbody>
+<tr><td><span class="dot" style="background:var(--ssm)"></span>Linear attention</td><td>matrix</td><td>\(-\mathbf v_t^\top\mathbf S\mathbf k_t\) (correlation)</td><td>&mdash;</td></tr>
+<tr><td><span class="dot" style="background:var(--ssm)"></span>Mamba-2, GLA, RetNet</td><td>matrix</td><td>correlation</td><td>+ decay (\(a_t\), \(\boldsymbol\alpha_t\), \(\gamma\))</td></tr>
+<tr><td><span class="dot" style="background:var(--delta)"></span>DeltaNet</td><td>matrix</td><td>\(\tfrac12\lVert\mathbf S\mathbf k_t-\mathbf v_t\rVert^2\) (regression)</td><td>&mdash;</td></tr>
+<tr><td><span class="dot" style="background:var(--delta)"></span>Gated DeltaNet</td><td>matrix</td><td>regression</td><td>+ decay \(\alpha_t\): \(\ \mathbf S_t=\alpha_t\mathbf S_{t-1}(\mathbf I-\beta_t\mathbf k_t\mathbf k_t^\top)+\beta_t\mathbf v_t\mathbf k_t^\top\)</td></tr>
+<tr><td><span class="dot" style="background:var(--delta)"></span>TTT, Titans</td><td>small MLP \(f_{\mathbf W}\)</td><td>\(\tfrac12\lVert f_{\mathbf W}(\mathbf k_t)-\mathbf v_t\rVert^2\)</td><td>Titans: + momentum (&ldquo;surprise&rdquo;), + forgetting</td></tr>
+</tbody></table>
+</div>
+<p>Gated DeltaNet (Yang, Kautz &amp; Hatamizadeh, ICLR 2025) combines the two mechanisms. The gate \(\alpha_t\) can wipe the memory quickly when the topic changes, and the delta rule edits individual entries precisely. It beat both Mamba-2 and DeltaNet, and it is the recurrent layer inside Qwen3-Next, with a channel-wise refinement of it inside Kimi Linear. TTT and Titans go one step further: if the memory is a model trained at test time, why not make it a small neural network and train it with a smarter optimizer? This &ldquo;memory = online regression&rdquo; view (formalized by Wang, Shi &amp; Fox) is, I think, the deepest idea in the area.</p>
+
+<h3 id="s-parity">13. Negative eigenvalues: why some memories can&rsquo;t count</h3>
+<p>So far we have asked how much a state can <em>remember</em>. A different question is what it can <em>compute</em>. Consider <strong>parity</strong>: read a string of bits and say whether the number of 1s is even or odd. A child can do it by flipping a coin over at every 1. Can our linear recurrences?</p>
+<p>Look at the delta-rule transition \(\mathbf M=\mathbf I-\beta\mathbf k\mathbf k^\top\) with a unit key \(\mathbf k\). Its eigenvalues (the factors by which it stretches special directions) are easy to compute:</p>
+<ol class="deriv">
+<li><div class="m">\(\mathbf M\mathbf k=\mathbf k-\beta\mathbf k(\mathbf k^\top\mathbf k)=(1-\beta)\,\mathbf k\)</div><div class="why">Along \(\mathbf k\), \(\mathbf M\) just scales by \(1-\beta\). So \(1-\beta\) is an eigenvalue.</div></li>
+<li><div class="m">\(\mathbf M\mathbf u=\mathbf u-\beta\mathbf k(\mathbf k^\top\mathbf u)=\mathbf u\ \) for \(\mathbf u\perp\mathbf k\)</div><div class="why">Perpendicular directions are untouched: eigenvalue \(1\).</div></li>
+<li><div class="m">$$\begin{aligned}\beta\in[0,1]&\Rightarrow 1-\beta\in[0,1]\\ \beta\in[0,2]&\Rightarrow 1-\beta\in[-1,1]\end{aligned}$$</div><div class="why">Allowing \(\beta\) up to 2 unlocks <strong>negative</strong> eigenvalues, i.e. sign flips.</div></li>
+</ol>
+<p>Why do sign flips matter? Take the one-number recurrence \(h_t=a(x_t)\,h_{t-1}\) with \(h_0=1\). If \(a(0)=1\) and \(a(1)=-1\), then \(h_L=(-1)^{\#\text{ones}}\): exactly the parity. With only non-negative values \(a(1)=\lambda\in[0,1]\), you get \(h_L=\lambda^{\#\text{ones}}\), which only ever shrinks, so even and odd counts are interleaved on a single decreasing curve and no threshold can separate them. Grazzi et al. (ICLR 2025) prove that, with finite precision, linear RNNs with only positive eigenvalues cannot solve parity, and that extending the range to \([-1,1]\) fixes it.</p>
+<div class="widget" id="w-parity">
+  <div class="wh"><span class="wt">Can it count?</span><span class="wd">Final state after reading strings containing 0&ndash;12 ones. Filled circles: even count; hollow squares: odd count.</span></div>
+  <div class="controls"><label>Positive-only model: \(a(1)=\lambda\) <input type="range" id="parL" min="0.05" max="1" step="0.01" value="0.7"><span class="val" id="parLv"></span></label></div>
+  <div class="grid2">
+    <div><div class="small sans">Eigenvalues in \([0,1]\): \(h=\lambda^{\#\text{ones}}\)</div><svg id="parA" viewBox="0 0 360 220" role="img" aria-label="Final state for positive-only model"></svg></div>
+    <div><div class="small sans">Eigenvalue \(-1\) allowed: \(h=(-1)^{\#\text{ones}}\)</div><svg id="parB" viewBox="0 0 360 220" role="img" aria-label="Final state with negative eigenvalue"></svg></div>
+  </div>
+</div>
+<p>This is a special case of a broader result. Merrill, Petty and Sabharwal (ICML 2024) showed that S4 and Mamba layers, <em>like Transformers</em>, live in a circuit class (\(\mathsf{TC}^0\)) that, unless a widely believed conjecture fails, cannot track state through long sequences of moves, such as composing permutations (shuffling cups) or following a chess game. A recurrent form does not by itself grant recurrent power. Richer transitions, with negative eigenvalues or products of several Householder steps (DeltaProduct), buy it back, at some cost in parallelism.</p>
+
+<h3 id="s-capacity">14. The capacity wall: why a sticky note can never be a notebook</h3>
+<p>The last piece of math is the simplest and, to me, the most important. It is a counting argument (the pigeonhole principle).</p>
+<ol class="deriv">
+<li><div class="m">A state of \(b\) bits has at most \(2^b\) distinct values.</div><div class="why">Each bit is 0 or 1.</div></li>
+<li><div class="m">There are \(V^n=2^{\,n\log_2V}\) strings of \(n\) tokens.</div><div class="why">\(V\) choices per position; then rewrite the base: \(V=2^{\log_2V}\).</div></li>
+<li><div class="m">If \(n\log_2V>b\): two different strings reach the <em>same</em> state.</div><div class="why">More strings than states (pigeonhole).</div></li>
+<li><div class="m">\(\Rightarrow\) the model cannot copy both correctly.</div><div class="why">After the strings end, everything the model does depends only on its state. Same state, same output, so at least one copy is wrong.</div></li>
+</ol>
+<div class="widget" id="w-pigeon">
+  <div class="wh"><span class="wt">Pigeonholes</span><span class="wd">Binary strings (left) must be stored as states (right). Red links mark collisions: two strings that become indistinguishable.</span></div>
+  <div class="controls">
+    <label>String length \(n\) <input type="range" id="pigN" min="1" max="5" step="1" value="3"><span class="val" id="pigNv"></span></label>
+    <label>State bits \(b\) <input type="range" id="pigB" min="1" max="5" step="1" value="2"><span class="val" id="pigBv"></span></label>
+  </div>
+  <svg id="pigSvg" viewBox="0 0 760 300" role="img" aria-label="Strings mapped to states with collisions"></svg>
+</div>
+<p>So <strong>copying \(n\) tokens needs memory that grows with \(n\)</strong>. A fixed-size recurrent state must eventually fail, while a Transformer&rsquo;s KV cache grows with the input. Jelassi et al. (ICML 2024) prove that a two-layer Transformer can copy strings of exponential length, while state space models are fundamentally limited by their fixed-size state. Zoology (Arora et al., ICLR 2024) found the practical face of this: 82% of the perplexity gap between gated-convolution models and attention came from <em>associative recall</em>, and a 70M-parameter attention model beat a 1.4B-parameter gated-convolution model on it.</p>
+<div class="callout take"><div class="lbl">My reading</div><p>The remaining gap between recurrent models and attention is a <strong>capacity gap, not an optimization gap</strong>. Better update rules (gating, delta, test-time optimizers) use a fixed budget of numbers more cleverly: less crosstalk, smarter eviction. But no rule can raise the budget. That is why the industry answer is not &ldquo;a better recurrence&rdquo; but <em>hybrids</em>: keep a few attention layers whose memory grows, and let the recurrent layers handle everything that compresses well.</p></div>
+</section>
+
+<section>
+<div class="part-head" id="part3"><div class="num">Part III</div><h2>How the approaches stack up</h2><p>Fifteen-plus papers, one picture: what each family nails, where it falls short, and which later idea fixed the bottleneck.</p></div>
+
+<h3 id="s-tree">15. Bottleneck &rarr; fix: the family tree</h3>
+<p>The cleanest way to remember the field is as a chain in which every generation removes the bottleneck of the one before.</p>
+<div class="timeline">
+  <div class="gen"><div class="g c-attn">Roots<small>1997&ndash;2021</small></div><div><strong>LSTM</strong> (constant memory, sequential training) &rarr; <strong>Transformer</strong> (parallel training, exact recall, quadratic cost) &rarr; <strong>linear attention / fast weights</strong> (attention as an RNN with a matrix memory).<div class="fix"><b>Bottleneck:</b> linear attention never forgets and has no principled long memory. Plain linear RNNs were unstable or forgetful.</div></div></div>
+  <div class="gen"><div class="g c-ssm">Generation I<small>2020&ndash;23</small></div><div><strong>HiPPO</strong> &rarr; <strong>LSSL</strong> &rarr; <strong>S4</strong> &rarr; <strong>DSS / S4D</strong> &rarr; <strong>S5</strong> &rarr; <strong>LRU</strong>: linear, time-invariant dynamics with principled initialization, parallel via convolution or scan. First to solve Path-X (88.1%).<div class="fix"><b>Bottleneck:</b> one fixed kernel for every input, so the model cannot <em>select</em> content. H3 and Hyena added gating; Zoology traced 82% of the remaining gap to associative recall.</div></div></div>
+  <div class="gen"><div class="g c-ssm">Generation II<small>2023&ndash;24</small></div><div><strong>RWKV, RetNet</strong> (fixed decay) &rarr; <strong>Mamba</strong> (input-dependent \(\Delta_t,\mathbf B_t,\mathbf C_t\) plus a hardware-aware scan) &rarr; <strong>GLA, Griffin, xLSTM</strong> (data-dependent gates) &rarr; <strong>Mamba-2</strong> (duality with attention, tensor-core chunking).<div class="fix"><b>Bottleneck:</b> writes are additive and forgetting is uniform, so there is no way to overwrite one association. State tracking is limited.</div></div></div>
+  <div class="gen"><div class="g c-delta">Generation III<small>2024&ndash;25</small></div><div><strong>DeltaNet</strong> (error-correcting writes, WY chunking) &rarr; <strong>Gated DeltaNet</strong> (decay + delta) &rarr; <strong>TTT, Titans</strong> (deep memories trained at test time) &rarr; <strong>negative eigenvalues, DeltaProduct</strong> (state tracking).<div class="fix"><b>Bottleneck:</b> the state is still fixed-size, so exact recall of long contexts is impossible in principle (Section 14).</div></div></div>
+  <div class="gen" style="border-bottom:none"><div class="g c-hyb">Hybrids<small>2024&ndash;</small></div><div><strong>Griffin, Jamba, Samba, Mamba-2-Hybrid</strong> &rarr; <strong>MiniMax-01, Nemotron-H, Qwen3-Next, Kimi Linear</strong>: mostly linear-time layers plus a minority of attention layers that restore exact recall. Distillation from Transformers (&ldquo;Mamba in the Llama&rdquo;) makes them cheap to obtain.<div class="fix"><b>Bottleneck:</b> the attention layers still grow, and the ratio is set by trial and error. See Part IV.</div></div></div>
+</div>
+
+<p>And paper by paper. Filter by family:</p>
+<div class="widget" id="w-cards" style="padding-bottom:10px">
+  <div class="controls"><div class="seg" id="cardFilter"><button data-f="all" class="on">All</button><button data-f="ssm">Generations I&ndash;II</button><button data-f="delta">Generation III</button><button data-f="hyb">Hybrids</button><button data-f="theory">Theory &amp; analysis</button></div></div>
+  <div class="cards" id="cardGrid"></div>
+</div>
+
+<h3 id="s-score">16. The scorecard</h3>
+<p>Here is my scorecard. Symbols: <span class="mk" data-s="y"></span> &middot; <span class="mk" data-s="p"></span> &middot; <span class="mk" data-s="n"></span>. Hover any cell for the reasoning.</p>
+<div class="widget" id="w-score" style="overflow-x:auto"><table class="cmp" id="scoreTable"></table></div>
+<p>Read it column by column and the story of Part II reappears. <strong>Parallel training</strong> and <strong>constant decoding memory</strong> were won early (S4). <strong>Content selection</strong> arrived with Mamba. <strong>Targeted overwrite</strong> arrived with the delta rule. <strong>Exact long recall</strong> is the one column that only attention, and therefore hybrids, can fill. <strong>State tracking</strong> is the newest frontier, and none of the mainstream layers fully solves it yet.</p>
+
+<h3 id="s-hybrid">17. Hybrids, and what memory really costs</h3>
+<p>Since a few attention layers buy back exact recall, how many do you need, and what do they cost? Slide the number of attention layers in an illustrative 32-layer model and watch the decoding memory:</p>
+<div class="widget" id="w-mem">
+  <div class="wh"><span class="wt">Decoding memory per sequence</span><span class="wd">32 layers; attention uses 8 KV heads &times; 128 dims; recurrent layers hold a fixed 2 MiB state; 16-bit numbers. This is my illustrative calculation, not a measurement.</span></div>
+  <div class="controls"><label>Attention layers in the hybrid <input type="range" id="memK" min="1" max="31" step="1" value="8"><span class="val" id="memKv"></span></label></div>
+  <div class="tiles" id="memTiles"></div>
+  <svg id="memSvg" viewBox="0 0 760 300" role="img" aria-label="Decoding memory versus context length for three architectures"></svg>
+  <div class="legend"><span><i style="background:var(--attn)"></i>Transformer (32 attention layers)</span><span><i style="background:var(--delta)"></i>Hybrid (slider)</span><span><i style="background:var(--ssm)"></i>Pure recurrent (32 layers)</span></div>
+</div>
+<p>Beyond a few thousand tokens, the hybrid&rsquo;s memory is dominated by its handful of attention layers. So the hybrid is roughly <em>N&times; cheaper</em> than a Transformer if it keeps 1/N of the attention layers, but it still grows linearly. Here is what real systems chose (token-mixing layers only; colors show layer type, and the exact layer order is simplified):</p>
+<div class="widget" id="w-stacks"></div>
+<p>What strikes me is the <strong>convergence</strong>. Independent teams with different recurrent layers (Mamba, Mamba-2, lightning attention, Gated DeltaNet, KDA) landed in the same band: roughly one attention layer for every 3 to 7 recurrent layers. Controlled studies back this up: at 8B parameters, a Mamba-2-Hybrid with just 7% attention layers beat a pure Transformer on all 12 standard tasks by +2.65 points on average and is predicted to generate up to 8&times; faster (Waleffe et al., 2024), while the pure SSMs lagged on copying-heavy tasks such as 5-shot MMLU and phonebook lookup.</p>
+</section>
+
+<section>
+<div class="part-head" id="part4"><div class="num">Part IV</div><h2>My take</h2><p>Opinions ahead, clearly labeled as mine. I&rsquo;ve tried to separate what is established from what I suspect.</p></div>
+
+<h3 id="s-unsolved">18. What I think is still unsolved</h3>
+<p><strong>Memory that knows its own size.</strong> Every model in Part II fixes its state size before seeing any data, while attention&rsquo;s memory grows without limit. The pigeonhole argument says neither extreme is right for every input. I expect the next real advance to be <em>elastic</em> memory: states that grow sublinearly (say, logarithmically, with fine detail for recent context and coarse summaries for distant context), or whose size the model allocates according to how much it predicts it will need to recall.</p>
+<p><strong>A theory of hybrids.</strong> 1:3 to 1:7 works, but nobody can derive it. My hypothesis, following the capacity argument: the attention fraction you need is set by the <em>recall demand of the data</em> (how many distinct, exactly-needed facts per context), not by model size. That is testable with synthetic recall tasks of varying density, and I would love to see it tested. Placement (early, middle or late layers), the kind of attention (global vs. sliding-window), and sharing KV caches across layers are just as open.</p>
+<p><strong>Transitions that are expressive <em>and</em> parallel.</strong> There is a ladder: scalar decay (Mamba-2) &sub; diagonal (Mamba, GLA) &sub; identity-plus-low-rank (DeltaNet, DeltaProduct) &sub; dense (classic RNNs). Each rung adds expressivity and costs parallelism. The search problem is crisp: find transition families that are closed under multiplication (so chunks compose), have compact representations (so chunks run on tensor cores), and include negative or rotational eigenvalues (so states can be tracked).</p>
+<p><strong>Evaluation.</strong> Perplexity hides exactly the failures that matter here, because a handful of recall tokens dominate the gap. I would want every new architecture paper to report synthetic recall at several state sizes, state-tracking tests, long-context retrieval such as RULER, and end-to-end serving throughput at fixed latency, not just kernel microbenchmarks.</p>
+<p><strong>Serving recurrent state.</strong> This is an underrated systems problem. A KV cache is an append-only log: you can truncate it, share a common prefix between requests, and roll it back when speculative decoding rejects a draft. A recurrent state is a lossy summary and supports none of that for free. Prefix caching needs checkpointed states, and speculative decoding needs snapshots or recomputation. I suspect infrastructure here will matter for adoption as much as the next architectural tweak.</p>
+
+<h3 id="s-surprise">19. What surprised me</h3>
+<div class="cards">
+<div class="card fam-ssm"><h5>The ODE wasn&rsquo;t the magic</h5><div class="row">S4 was sold on beautiful continuous-time math. Then the LRU matched it with a plain, well-initialized diagonal linear RNN. The ODE turned out to be scaffolding: a great way to <em>find</em> a good parameterization, not the reason it works.</div></div>
+<div class="card fam-delta"><h5>A 1960 rule is the 2025 frontier</h5><div class="row">The delta rule is Widrow&ndash;Hoff, older than backpropagation. What changed was not the idea but the algorithm: a WY representation that makes it chunk-parallel on tensor cores. Old math plus hardware-aware algorithms keeps winning in this area.</div></div>
+<div class="card fam-attn"><h5>SSMs and attention are the same thing</h5><div class="row">I find structured state space duality genuinely delightful. Two communities with different vocabularies (control theory vs. kernels) turned out to be studying the same operator, \((\mathbf L\circ\mathbf Q\mathbf K^\top)\mathbf V\), and differ only in the mask.</div></div>
+<div class="card fam-hyb"><h5>Less expressive won</h5><div class="row">Mamba-2 deliberately chose a <em>weaker</em> transition (a scalar instead of a diagonal) to use tensor cores, then used the speed to afford 4&ndash;8&times; bigger states, and came out ahead. Hardware fit is now a first-class design constraint.</div></div>
+<div class="card fam-hyb"><h5>Independent convergence</h5><div class="row">Different labs, different recurrent layers, the same answer: a few attention layers and many linear ones. When independent searches converge, it usually means there is a real underlying law. We just haven&rsquo;t written it down yet.</div></div>
+</div>
+
+<h3 id="s-next">20. Where I think this is heading</h3>
+<p class="small">Speculation, in decreasing order of confidence.</p>
+<ol>
+<li><strong>Hybrids become the default</strong> for long-context models. The debate moves from &ldquo;Transformer or SSM?&rdquo; to &ldquo;which attention, how much, and where?&rdquo;</li>
+<li><strong>The &ldquo;memory as an optimizer&rdquo; view absorbs more of optimization theory</strong>: momentum, normalized and second-order inner steps, meta-learned inner objectives. Gated DeltaNet is SGD with weight decay; I doubt SGD is the end of the story.</li>
+<li><strong>Distillation becomes the standard deployment path.</strong> Train (or reuse) a Transformer, then convert most of its layers into recurrent ones, as in &ldquo;Mamba in the Llama&rdquo;, which keeps a quarter of the attention layers and matches the original on chat benchmarks.</li>
+<li><strong>Richer transitions return for reasoning.</strong> As agents and code models need to track evolving state, Householder-style transitions with negative eigenvalues will move from theory papers into production layers.</li>
+<li><strong>Explicit memories become inspectable and editable.</strong> A state \(\mathbf S_t\) that is literally an associative memory can, in principle, be probed with keys and edited with delta updates. That is a tantalizing hook for interpretability and control.</li>
+</ol>
+<div class="pullquote">The notebook versus the sticky note was never really a contest. The best readers keep both: a sticky note for the gist, and a few bookmarked pages for the details that must be exact.</div>
+<p>If you&rsquo;ve followed along this far, you have derived the leaky bucket, the gated RNN, the parallel scan, the SSD mask and the delta rule yourself, and you can see why the frontier looks the way it does. The formal version, with the full literature review and citations, is in <a href="../Survey.pdf">Survey.pdf</a>.</p>
+
+<h3 id="s-refs">References</h3>
+<p class="small">All works cited in this explainer and in the accompanying survey. Venues refer to the peer-reviewed version where one exists.</p>
+<ol class="refs"><li id="ref-arora2024zoology">Arora et al. (2024). <a href="https://arxiv.org/abs/2312.04927">Zoology: Measuring and Improving Recall in Efficient Language Models</a>. <span class="muted">ICLR.</span></li>
+<li id="ref-arora2024based">Arora et al. (2024). <a href="https://arxiv.org/abs/2402.18668">Simple Linear Attention Language Models Balance the Recall-Throughput Tradeoff</a>. <span class="muted">ICML.</span></li>
+<li id="ref-beck2024xlstm">Beck et al. (2024). <a href="https://arxiv.org/abs/2405.04517">xLSTM: Extended Long Short-Term Memory</a>. <span class="muted">NeurIPS 37.</span></li>
+<li id="ref-behrouz2025titans">Behrouz, Zhong &amp; Mirrokni (2025). <a href="https://arxiv.org/abs/2501.00663">Titans: Learning to Memorize at Test Time</a>. <span class="muted">NeurIPS 38.</span></li>
+<li id="ref-blelloch1990prefix">Blelloch (1990). <a href="http://www.cs.cmu.edu/~guyb/publications.html">Prefix Sums and Their Applications</a>. <span class="muted">Tech. report CMU-CS-90-190.</span></li>
+<li id="ref-dao2024ssd">Dao &amp; Gu (2024). <a href="https://arxiv.org/abs/2405.21060">Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality</a>. <span class="muted">ICML.</span></li>
+<li id="ref-dao2022flashattention">Dao et al. (2022). <a href="https://arxiv.org/abs/2205.14135">FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness</a>. <span class="muted">NeurIPS 35.</span></li>
+<li id="ref-de2024griffin">De et al. (2024). <a href="https://arxiv.org/abs/2402.19427">Griffin: Mixing Gated Linear Recurrences with Local Attention for Efficient Language Models</a>. <span class="muted">arXiv:2402.19427.</span></li>
+<li id="ref-fu2023h3">Fu et al. (2023). <a href="https://arxiv.org/abs/2212.14052">Hungry Hungry Hippos: Towards Language Modeling with State Space Models</a>. <span class="muted">ICLR.</span></li>
+<li id="ref-grazzi2025negative">Grazzi et al. (2025). <a href="https://arxiv.org/abs/2411.12537">Unlocking State-Tracking in Linear RNNs Through Negative Eigenvalues</a>. <span class="muted">ICLR.</span></li>
+<li id="ref-gu2024mamba">Gu &amp; Dao (2024). <a href="https://arxiv.org/abs/2312.00752">Mamba: Linear-Time Sequence Modeling with Selective State Spaces</a>. <span class="muted">COLM.</span></li>
+<li id="ref-gu2020hippo">Gu et al. (2020). <a href="https://arxiv.org/abs/2008.07669">HiPPO: Recurrent Memory with Optimal Polynomial Projections</a>. <span class="muted">NeurIPS 33.</span></li>
+<li id="ref-gu2021lssl">Gu et al. (2021). <a href="https://arxiv.org/abs/2110.13985">Combining Recurrent, Convolutional, and Continuous-time Models with Linear State-Space Layers</a>. <span class="muted">NeurIPS 34.</span></li>
+<li id="ref-gu2022s4d">Gu et al. (2022). <a href="https://arxiv.org/abs/2206.11893">On the Parameterization and Initialization of Diagonal State Space Models</a>. <span class="muted">NeurIPS 35.</span></li>
+<li id="ref-gu2022s4">Gu, Goel &amp; Ré (2022). <a href="https://arxiv.org/abs/2111.00396">Efficiently Modeling Long Sequences with Structured State Spaces</a>. <span class="muted">ICLR.</span></li>
+<li id="ref-gupta2022dss">Gupta, Gu &amp; Berant (2022). <a href="https://arxiv.org/abs/2203.14343">Diagonal State Spaces are as Effective as Structured State Spaces</a>. <span class="muted">NeurIPS 35.</span></li>
+<li id="ref-hochreiter1997lstm">Hochreiter &amp; Schmidhuber (1997). <a href="https://doi.org/10.1162/neco.1997.9.8.1735">Long Short-Term Memory</a>. <span class="muted">Neural Computation.</span></li>
+<li id="ref-hsieh2024ruler">Hsieh et al. (2024). <a href="https://arxiv.org/abs/2404.06654">RULER: What's the Real Context Size of Your Long-Context Language Models?</a>. <span class="muted">COLM.</span></li>
+<li id="ref-jelassi2024repeat">Jelassi et al. (2024). <a href="https://arxiv.org/abs/2402.01032">Repeat After Me: Transformers are Better than State Space Models at Copying</a>. <span class="muted">ICML.</span></li>
+<li id="ref-katharopoulos2020transformers">Katharopoulos et al. (2020). <a href="https://arxiv.org/abs/2006.16236">Transformers are RNNs: Fast Autoregressive Transformers with Linear Attention</a>. <span class="muted">ICML.</span></li>
+<li id="ref-kimi2025linear">Kimi Team (2025). <a href="https://arxiv.org/abs/2510.26692">Kimi Linear: An Expressive, Efficient Attention Architecture</a>. <span class="muted">arXiv:2510.26692.</span></li>
+<li id="ref-lieber2024jamba">Lieber et al. (2024). <a href="https://arxiv.org/abs/2403.19887">Jamba: A Hybrid Transformer-Mamba Language Model</a>. <span class="muted">arXiv:2403.19887.</span></li>
+<li id="ref-liu2024vmamba">Liu et al. (2024). <a href="https://arxiv.org/abs/2401.10166">VMamba: Visual State Space Model</a>. <span class="muted">NeurIPS 37.</span></li>
+<li id="ref-martin2018parallelizing">Martin &amp; Cundy (2018). <a href="https://arxiv.org/abs/1709.04057">Parallelizing Linear Recurrent Neural Nets Over Sequence Length</a>. <span class="muted">ICLR.</span></li>
+<li id="ref-merrill2024illusion">Merrill, Petty &amp; Sabharwal (2024). <a href="https://arxiv.org/abs/2404.08819">The Illusion of State in State-Space Models</a>. <span class="muted">ICML.</span></li>
+<li id="ref-minimax2025">MiniMax (2025). <a href="https://arxiv.org/abs/2501.08313">MiniMax-01: Scaling Foundation Models with Lightning Attention</a>. <span class="muted">arXiv:2501.08313.</span></li>
+<li id="ref-nguyen2023hyenadna">Nguyen et al. (2023). <a href="https://arxiv.org/abs/2306.15794">HyenaDNA: Long-Range Genomic Sequence Modeling at Single Nucleotide Resolution</a>. <span class="muted">NeurIPS 36.</span></li>
+<li id="ref-nvidia2025nemotronh">NVIDIA (2025). <a href="https://arxiv.org/abs/2504.03624">Nemotron-H: A Family of Accurate and Efficient Hybrid Mamba-Transformer Models</a>. <span class="muted">arXiv:2504.03624.</span></li>
+<li id="ref-orvieto2023lru">Orvieto et al. (2023). <a href="https://arxiv.org/abs/2303.06349">Resurrecting Recurrent Neural Networks for Long Sequences</a>. <span class="muted">ICML.</span></li>
+<li id="ref-peng2023rwkv">Peng et al. (2023). <a href="https://aclanthology.org/2023.findings-emnlp.936/">RWKV: Reinventing RNNs for the Transformer Era</a>. <span class="muted">Findings of EMNLP.</span></li>
+<li id="ref-poli2023hyena">Poli et al. (2023). <a href="https://arxiv.org/abs/2302.10866">Hyena Hierarchy: Towards Larger Convolutional Language Models</a>. <span class="muted">ICML.</span></li>
+<li id="ref-qwen3next">Qwen Team (2025). <a href="https://huggingface.co/Qwen/Qwen3-Next-80B-A3B-Instruct">Qwen3-Next: Towards Ultimate Training &amp; Inference Efficiency</a>. <span class="muted">Blog / model card.</span></li>
+<li id="ref-ren2025samba">Ren et al. (2025). <a href="https://arxiv.org/abs/2406.07522">Samba: Simple Hybrid State Space Models for Efficient Unlimited Context Language Modeling</a>. <span class="muted">ICLR.</span></li>
+<li id="ref-schlag2021linear">Schlag, Irie &amp; Schmidhuber (2021). <a href="https://arxiv.org/abs/2102.11174">Linear Transformers Are Secretly Fast Weight Programmers</a>. <span class="muted">ICML.</span></li>
+<li id="ref-siems2025deltaproduct">Siems et al. (2025). <a href="https://arxiv.org/abs/2502.10297">DeltaProduct: Improving State-Tracking in Linear RNNs via Householder Products</a>. <span class="muted">NeurIPS 38.</span></li>
+<li id="ref-smith2023s5">Smith, Warrington &amp; Linderman (2023). <a href="https://arxiv.org/abs/2208.04933">Simplified State Space Layers for Sequence Modeling</a>. <span class="muted">ICLR.</span></li>
+<li id="ref-sun2023retnet">Sun et al. (2023). <a href="https://arxiv.org/abs/2307.08621">Retentive Network: A Successor to Transformer for Large Language Models</a>. <span class="muted">arXiv:2307.08621.</span></li>
+<li id="ref-sun2024ttt">Sun et al. (2025). <a href="https://arxiv.org/abs/2407.04620">Learning to (Learn at Test Time): RNNs with Expressive Hidden States</a>. <span class="muted">ICML.</span></li>
+<li id="ref-tay2021lra">Tay et al. (2021). <a href="https://arxiv.org/abs/2011.04006">Long Range Arena: A Benchmark for Efficient Transformers</a>. <span class="muted">ICLR.</span></li>
+<li id="ref-vaswani2017attention">Vaswani et al. (2017). <a href="https://arxiv.org/abs/1706.03762">Attention Is All You Need</a>. <span class="muted">NeurIPS 30.</span></li>
+<li id="ref-waleffe2024empirical">Waleffe et al. (2024). <a href="https://arxiv.org/abs/2406.07887">An Empirical Study of Mamba-based Language Models</a>. <span class="muted">arXiv:2406.07887.</span></li>
+<li id="ref-wang2024mambainllama">Wang et al. (2024). <a href="https://arxiv.org/abs/2408.15237">The Mamba in the Llama: Distilling and Accelerating Hybrid Models</a>. <span class="muted">NeurIPS 37.</span></li>
+<li id="ref-wang2025testtimeregression">Wang, Shi &amp; Fox (2026). <a href="https://arxiv.org/abs/2501.12352">Test-time Regression: A Unifying Framework for Designing Sequence Models with Associative Memory</a>. <span class="muted">Journal of Machine Learning Research.</span></li>
+<li id="ref-yang2024gla">Yang et al. (2024). <a href="https://arxiv.org/abs/2312.06635">Gated Linear Attention Transformers with Hardware-Efficient Training</a>. <span class="muted">ICML.</span></li>
+<li id="ref-yang2024deltanet">Yang et al. (2024). <a href="https://arxiv.org/abs/2406.06484">Parallelizing Linear Transformers with the Delta Rule over Sequence Length</a>. <span class="muted">NeurIPS 37.</span></li>
+<li id="ref-yang2025gated">Yang, Kautz &amp; Hatamizadeh (2025). <a href="https://arxiv.org/abs/2412.06464">Gated Delta Networks: Improving Mamba2 with Delta Rule</a>. <span class="muted">ICLR.</span></li>
+<li id="ref-zhu2024vim">Zhu et al. (2024). <a href="https://arxiv.org/abs/2401.09417">Vision Mamba: Efficient Visual Representation Learning with Bidirectional State Space Model</a>. <span class="muted">ICML.</span></li></ol>
+<footer>
+<p>Companion to &ldquo;Beyond Quadratic Attention: A Survey of State Space Models, Linear Recurrences and Hybrids&rdquo;. Every figure on this page is computed live in your browser from the equations shown; the only external resource is KaTeX for math rendering. Memory and cost figures are illustrative calculations under the stated assumptions, not benchmarks. Written with Claude (Anthropic).</p>
+</footer>
+</section>
+</main>
+</div>
+<div class="tip" id="tip"></div>
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+"use strict";
+var $ = function(id){ return document.getElementById(id); };
+var NS = "http://www.w3.org/2000/svg";
+function S(tag, attrs, parent){ var e = document.createElementNS(NS, tag); if (attrs) for (var k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function T(parent, x, y, str, attrs){ var a = {x:x, y:y}; if (attrs) for (var k in attrs) a[k] = attrs[k]; var t = S("text", a, parent); t.textContent = str; return t; }
+function clear(el){ while (el.firstChild) el.removeChild(el.firstChild); }
+function cssv(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function fx(x, d){ if (d === undefined) d = 2; var s = Number(x).toFixed(d); return s === "-0.00" || s === "-0.0" ? s.slice(1) : s; }
+function compact(n){ var a = Math.abs(n), s; if (a >= 1e12) s = (n/1e12).toFixed(a>=1e13?0:1)+"T"; else if (a >= 1e9) s = (n/1e9).toFixed(a>=1e10?0:1)+"B"; else if (a >= 1e6) s = (n/1e6).toFixed(a>=1e7?0:1)+"M"; else if (a >= 1e3) s = (n/1e3).toFixed(a>=1e4?0:1)+"K"; else s = String(Math.round(n)); return s.replace(".0", ""); }
+function tok(n){ if (n >= 1048576) { var m = n/1048576; return (Math.abs(m - Math.round(m)) < 0.05 ? Math.round(m) : m.toFixed(1)) + "M"; } if (n >= 1024) return Math.round(n/1024) + "K"; return String(Math.round(n)); }
+function bytes(b){ var u = ["B","KiB","MiB","GiB","TiB"], i = 0; while (b >= 1024 && i < u.length-1){ b /= 1024; i++; } return (b >= 100 ? b.toFixed(0) : b >= 10 ? b.toFixed(1) : b.toFixed(2)) + " " + u[i]; }
+function tex(s){ if (window.katex) { try { return katex.renderToString(s, {throwOnError:false}); } catch(e){} } return s; }
+function hex2rgb(h){ h = h.replace("#",""); if (h.length===3) h = h.split("").map(function(c){return c+c;}).join(""); return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
+function mix(h1, h2, t){ var a = hex2rgb(h1), b = hex2rgb(h2); var c = a.map(function(v,i){ return Math.round(v + (b[i]-v)*t); }); return "rgb(" + c.join(",") + ")"; }
+function seeded(s){ return function(){ s = (s*1664525 + 1013904223) % 4294967296; return s/4294967296; }; }
+var tip = $("tip");
+function moveTip(ev){ var x = ev.clientX + 14, y = ev.clientY + 14, w = tip.offsetWidth, h = tip.offsetHeight; if (x + w > innerWidth - 8) x = ev.clientX - w - 14; if (y + h > innerHeight - 8) y = ev.clientY - h - 14; tip.style.left = x + "px"; tip.style.top = y + "px"; }
+function showTip(html, ev){ tip.innerHTML = html; tip.style.opacity = 1; moveTip(ev); }
+function hideTip(){ tip.style.opacity = 0; }
+function hoverTip(el, fn){ el.addEventListener("mousemove", function(ev){ var h = fn(ev); if (h) showTip(h, ev); else hideTip(); }); el.addEventListener("mouseleave", hideTip); }
+function svgPoint(svg, ev){ var p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; var m = svg.getScreenCTM(); return m ? p.matrixTransform(m.inverse()) : {x:0,y:0}; }
+var rerenders = [];
+function onTheme(fn){ rerenders.push(fn); }
+function setupSeg(id, cb){ var seg = $(id); if (!seg) return; seg.addEventListener("click", function(ev){ var b = ev.target.closest("button"); if (!b) return; Array.prototype.forEach.call(seg.querySelectorAll("button"), function(x){ x.classList.toggle("on", x === b); }); cb(b.dataset.p || b.dataset.f); }); }
+window.__ui = {tok:tok, S:S, T:T, clear:clear, cssv:cssv, fx:fx, compact:compact, bytes:bytes, tex:tex, mix:mix, seeded:seeded, hoverTip:hoverTip, hideTip:hideTip, svgPoint:svgPoint, onTheme:onTheme, setupSeg:setupSeg, $:$};
+
+/* ---------- generic log-log line chart ---------- */
+function logChart(svg, cfg){
+  clear(svg);
+  var W = 760, H = cfg.height || 300, m = {l:66, r:150, t:14, b:42};
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  var lx0 = Math.log10(cfg.xmin), lx1 = Math.log10(cfg.xmax), ly0 = Math.log10(cfg.ymin), ly1 = Math.log10(cfg.ymax);
+  function X(x){ return m.l + (Math.log10(x) - lx0) / (lx1 - lx0) * (W - m.l - m.r); }
+  function Y(y){ y = Math.max(cfg.ymin, Math.min(cfg.ymax, y)); return H - m.b - (Math.log10(y) - ly0) / (ly1 - ly0) * (H - m.t - m.b); }
+  cfg.yticks.forEach(function(v){ S("line", {x1:m.l, x2:W-m.r, y1:Y(v), y2:Y(v), style:"stroke:var(--grid);stroke-width:1"}, svg); T(svg, m.l-8, Y(v)+4, cfg.yfmt(v), {"text-anchor":"end", "font-size":11, style:"fill:var(--muted)"}); });
+  cfg.xticks.forEach(function(v){ S("line", {x1:X(v), x2:X(v), y1:m.t, y2:H-m.b, style:"stroke:var(--grid);stroke-width:1"}, svg); T(svg, X(v), H-m.b+16, cfg.xfmt(v), {"text-anchor":"middle", "font-size":11, style:"fill:var(--muted)"}); });
+  S("line", {x1:m.l, x2:W-m.r, y1:H-m.b, y2:H-m.b, style:"stroke:var(--axis);stroke-width:1"}, svg);
+  T(svg, (m.l + W - m.r)/2, H-6, cfg.xlabel, {"text-anchor":"middle", "font-size":12, style:"fill:var(--ink-2)"});
+  T(svg, 14, (H-m.b+m.t)/2, cfg.ylabel, {"text-anchor":"middle", "font-size":12, transform:"rotate(-90 14 " + ((H-m.b+m.t)/2) + ")", style:"fill:var(--ink-2)"});
+  var ends = [];
+  cfg.series.forEach(function(s){
+    var d = "", n = 140;
+    for (var i = 0; i <= n; i++){ var lx = lx0 + (lx1 - lx0) * i / n, x = Math.pow(10, lx), y = s.f(x); d += (i ? "L" : "M") + X(x).toFixed(1) + "," + Y(y).toFixed(1); }
+    S("path", {d:d, style:"fill:none;stroke:" + s.color + ";stroke-width:2;stroke-linejoin:round;stroke-linecap:round"}, svg);
+    ends.push({y:Y(s.f(cfg.xmax)), s:s});
+  });
+  ends.sort(function(a,b){ return a.y - b.y; });
+  for (var i = 1; i < ends.length; i++) if (ends[i].y - ends[i-1].y < 16) ends[i].y = ends[i-1].y + 16;
+  ends.forEach(function(e){ S("circle", {cx:W-m.r, cy:Y(e.s.f(cfg.xmax)), r:4, style:"fill:" + e.s.color + ";stroke:var(--surface);stroke-width:2"}, svg); T(svg, W-m.r+10, e.y+4, e.s.label, {"font-size":12, style:"fill:var(--ink)"}); });
+  if (cfg.mark){ var mx = X(cfg.mark); S("line", {x1:mx, x2:mx, y1:m.t, y2:H-m.b, style:"stroke:var(--ink-2);stroke-width:1;opacity:.5"}, svg); cfg.series.forEach(function(s){ S("circle", {cx:mx, cy:Y(s.f(cfg.mark)), r:5, style:"fill:" + s.color + ";stroke:var(--surface);stroke-width:2"}, svg); }); }
+  var cross = S("line", {x1:0, x2:0, y1:m.t, y2:H-m.b, style:"stroke:var(--ink);stroke-width:1;opacity:0"}, svg);
+  var hit = S("rect", {x:m.l, y:m.t, width:W-m.l-m.r, height:H-m.t-m.b, style:"fill:transparent;cursor:crosshair"}, svg);
+  hit.addEventListener("mousemove", function(ev){ var p = svgPoint(svg, ev); var lx = lx0 + (p.x - m.l)/(W - m.l - m.r)*(lx1-lx0); var x = Math.pow(10, lx); cross.setAttribute("x1", p.x); cross.setAttribute("x2", p.x); cross.style.opacity = .35; var html = "<b>" + cfg.xname + " " + cfg.xfmt(x, true) + "</b>"; cfg.series.forEach(function(s){ html += "<br><span style='display:inline-block;width:9px;height:9px;border-radius:50%;background:" + s.color + ";margin-right:6px'></span>" + s.name + ": " + cfg.vfmt(s.f(x)); }); showTip(html, ev); });
+  hit.addEventListener("mouseleave", function(){ cross.style.opacity = 0; hideTip(); });
+}
+window.__ui.logChart = logChart;
+
+/* ---------- theme, progress, toc ---------- */
+var root = document.documentElement;
+try { var saved = localStorage.getItem("nb-theme"); if (saved) root.dataset.theme = saved; } catch(e){}
+$("themeBtn").addEventListener("click", function(){ var dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; root.dataset.theme = dark ? "light" : "dark"; try { localStorage.setItem("nb-theme", root.dataset.theme); } catch(e){} rerenders.forEach(function(f){ f(); }); });
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function(){ rerenders.forEach(function(f){ f(); }); });
+var links = Array.prototype.slice.call(document.querySelectorAll("nav.toc a"));
+var targets = links.map(function(a){ return document.querySelector(a.getAttribute("href")); });
+function onScroll(){ var h = document.documentElement; var p = h.scrollTop / (h.scrollHeight - h.clientHeight); $("progress").style.width = (100*p).toFixed(2) + "%"; var cur = 0; targets.forEach(function(t, i){ if (t && t.getBoundingClientRect().top < 140) cur = i; }); links.forEach(function(a, i){ a.classList.toggle("active", i === cur); }); }
+addEventListener("scroll", onScroll, {passive:true}); onScroll();
+
+/* ---------- hero animation ---------- */
+(function(){
+  var c = $("heroCanvas"), ctx = c.getContext("2d"), W = 0, Hh = 0;
+  var words = "the old map led us past the river to a hidden door that nobody had opened in years".split(" ");
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function resize(){ var d = window.devicePixelRatio || 1; W = c.clientWidth; Hh = c.clientHeight; c.width = W*d; c.height = Hh*d; ctx.setTransform(d,0,0,d,0,0); }
+  resize(); addEventListener("resize", resize);
+  var cells = []; for (var i = 0; i < 16; i++) cells.push(0.15);
+  var rnd = seeded(3), lastN = -1, t0 = performance.now();
+  function draw(now){
+    var attn = cssv("--attn"), ssm = cssv("--ssm"), ink = cssv("--ink"), ink2 = cssv("--ink-2"), muted = cssv("--muted"), surf2 = cssv("--surface-2");
+    ctx.clearRect(0, 0, W, Hh);
+    var per = 700, tt = reduce ? 14.5 : (now - t0)/per, cycle = words.length + 4, n = Math.min(words.length, Math.floor(tt) % cycle + 1), frac = tt - Math.floor(tt);
+    var left = 24, gridW = Math.min(170, W*0.22), right = W - gridW - 40, dx = (right - left) / words.length, bw = Math.max(10, dx - 3);
+    ctx.font = "600 12px " + getComputedStyle(document.body).getPropertyValue("--sans");
+    ctx.fillStyle = ink2; ctx.textAlign = "left";
+    ctx.fillText("Attention: each new token compares itself with every earlier token", left, 22);
+    ctx.fillText("Recurrence: each token is folded into a fixed-size memory", left, Hh/2 + 22);
+    var yA = Hh*0.36, yB = Hh*0.84;
+    for (var i = 0; i < n; i++){
+      var x = left + i*dx, cur = i === n - 1;
+      ctx.fillStyle = cur ? attn : surf2; ctx.globalAlpha = 1;
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, yA - 9, bw, 18, 4) : ctx.rect(x, yA - 9, bw, 18); ctx.fill();
+      ctx.fillStyle = cur ? ssm : surf2; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, yB - 9, bw, 18, 4) : ctx.rect(x, yB - 9, bw, 18); ctx.fill();
+    }
+    var k = n - 1, xk = left + k*dx + bw/2;
+    ctx.strokeStyle = attn; ctx.lineWidth = 1.2;
+    for (var j = 0; j < k; j++){
+      var xj = left + j*dx + bw/2, h = 10 + (xk - xj)*0.18;
+      ctx.globalAlpha = 0.25 + 0.5*Math.min(1, frac*2);
+      ctx.beginPath(); ctx.moveTo(xk, yA - 10); ctx.quadraticCurveTo((xk + xj)/2, yA - 10 - h, xj, yA - 10); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    var gx = W - gridW - 16, gy = Hh/2 + 34, cs = (Math.min(gridW, Hh/2 - 50))/4;
+    if (n !== lastN){ lastN = n; for (var q = 0; q < 16; q++) cells[q] = 0.82*cells[q] + 0.18*rnd(); }
+    var fl = Math.min(1, frac*1.6), tx = left + k*dx + bw/2 + (gx - (left + k*dx + bw/2))*fl, ty = yB + (gy + 2*cs - yB)*fl;
+    ctx.fillStyle = ssm; ctx.globalAlpha = 1 - fl*0.7; ctx.beginPath(); ctx.arc(tx, ty, 5, 0, 6.283); ctx.fill(); ctx.globalAlpha = 1;
+    for (var r = 0; r < 4; r++) for (var cc = 0; cc < 4; cc++){ var v = cells[r*4 + cc]; ctx.fillStyle = mix(cssv("--surface-2"), ssm, 0.15 + 0.85*v); ctx.beginPath(); ctx.roundRect ? ctx.roundRect(gx + cc*cs, gy + r*cs, cs - 3, cs - 3, 4) : ctx.rect(gx + cc*cs, gy + r*cs, cs - 3, cs - 3); ctx.fill(); }
+    ctx.fillStyle = muted; ctx.font = "12px " + getComputedStyle(document.body).getPropertyValue("--sans"); ctx.textAlign = "right";
+    ctx.fillText("comparisons so far: " + (n*(n+1)/2), W - 20, 22);
+    ctx.fillText("memory: 16 numbers, always", W - 20, Hh/2 + 22);
+    ctx.textAlign = "left"; ctx.fillStyle = ink; ctx.font = "600 13px " + getComputedStyle(document.body).getPropertyValue("--sans");
+    ctx.fillText("“" + words.slice(Math.max(0, n - 6), n).join(" ") + "”", left, Hh/2 - 12);
+    if (!reduce) requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(draw);
+  onTheme(function(){ if (reduce) requestAnimationFrame(draw); });
+})();
+
+/* ---------- W1 cost race ---------- */
+(function(){
+  var sl = $("costL"), svg = $("costSvg");
+  function render(){
+    var L = Math.round(Math.pow(2, +sl.value)); $("costLv").textContent = tok(L) + " tokens";
+    var att = L*(L+1)/2;
+    $("costTiles").innerHTML = '<div class="tile"><div class="l">Attention comparisons per layer</div><div class="v">' + compact(att) + '</div><div class="s">grows like L&sup2;/2</div></div>' +
+      '<div class="tile"><div class="l">Recurrent state updates per layer</div><div class="v">' + compact(L) + '</div><div class="s">grows like L</div></div>' +
+      '<div class="tile"><div class="l">Ratio</div><div class="v">' + compact((L+1)/2) + '&times;</div><div class="s">attention / recurrence</div></div>' +
+      '<div class="tile"><div class="l">KV cache vs. fixed state</div><div class="v">' + bytes(L*131072) + '</div><div class="s">vs. 64 MiB (illustrative 8B-scale model)</div></div>';
+    logChart(svg, {xmin:1024, xmax:1048576, ymin:1e3, ymax:1e12, mark:L, xname:"L =", xlabel:"context length L (tokens)", ylabel:"operations per layer",
+      xticks:[1024, 8192, 65536, 1048576], yticks:[1e3,1e6,1e9,1e12], xfmt:function(v){ return tok(v); }, yfmt:function(v){ return compact(v); }, vfmt:function(v){ return compact(v); },
+      series:[{name:"Attention", label:"Attention", color:"var(--attn)", f:function(x){ return x*(x+1)/2; }}, {name:"Recurrence", label:"Recurrence", color:"var(--ssm)", f:function(x){ return x; }}]});
+  }
+  sl.addEventListener("input", render); render(); onTheme(render);
+})();
+
+/* ---------- unified diagram ---------- */
+(function(){
+  var svg = $("unifiedSvg");
+  svg.setAttribute("viewBox", "0 0 760 230");
+  function box(x, y, w, h, label, sub, color, tipHtml, italic){
+    var g = S("g", {style:"cursor:default"}, svg);
+    S("rect", {x:x, y:y, width:w, height:h, rx:12, style:"fill:var(--surface-2);stroke:" + color + ";stroke-width:1.5"}, g);
+    T(g, x + w/2, y + h/2 - 2, label, {"text-anchor":"middle", "font-size":17, "font-weight":700, "font-style": italic ? "italic" : "normal", style:"fill:var(--ink)"});
+    T(g, x + w/2, y + h/2 + 17, sub, {"text-anchor":"middle", "font-size":11.5, style:"fill:var(--ink-2)"});
+    hoverTip(g, function(){ return tipHtml; });
+  }
+  function arrow(x1, y1, x2, y2){ S("line", {x1:x1, y1:y1, x2:x2, y2:y2, style:"stroke:var(--ink-2);stroke-width:1.5", "marker-end":"url(#uarr)"}, svg); }
+  function render(){
+    clear(svg);
+    var defs = S("defs", {}, svg), mk = S("marker", {id:"uarr", viewBox:"0 0 10 10", refX:9, refY:5, markerWidth:7, markerHeight:7, orient:"auto-start-reverse"}, defs);
+    S("path", {d:"M0,0 L10,5 L0,10 z", style:"fill:var(--ink-2)"}, mk);
+    var Y0 = 58;
+    S("path", {d:"M510," + Y0 + " C510,8 70,8 70," + (Y0 - 3), style:"fill:none;stroke:var(--muted);stroke-width:1.2;stroke-dasharray:4 4", "marker-end":"url(#uarr)"}, svg);
+    T(svg, 290, 20, "next token: the new memory becomes the old memory", {"text-anchor":"middle", "font-size":11.5, style:"fill:var(--muted)"});
+    box(10, Y0, 120, 62, "S\u209C\u208B\u2081", "old memory", "var(--ssm)", "<b>Old memory</b><br>A vector or matrix of fixed size, summarizing every token so far.");
+    box(175, Y0, 150, 62, "T\u209C( \u00B7 )", "forget / transform", "var(--ssm)", "<b>Transition</b><br>Identity (linear attention), fixed decay (RetNet, S4), input-dependent decay (Mamba, GLA, Mamba-2), or decay + erase-along-key (DeltaNet, Gated DeltaNet).", true);
+    S("circle", {cx:395, cy:Y0 + 31, r:18, style:"fill:var(--surface-2);stroke:var(--ink-2);stroke-width:1.5"}, svg); T(svg, 395, Y0 + 37, "+", {"text-anchor":"middle", "font-size":20, "font-weight":700, style:"fill:var(--ink)"});
+    box(325, 158, 140, 62, "\u03B2\u209C v\u209C k\u209C\u1D40", "write", "var(--delta)", "<b>Write</b><br>Store value v under key k (an outer product). In DeltaNet the write is a correction toward v; in Mamba it is (\u0394\u209C x\u209C) B\u209C\u1D40.");
+    box(450, Y0, 120, 62, "S\u209C", "new memory", "var(--ssm)", "<b>New memory</b><br>Same size as before, regardless of how many tokens have been read.");
+    box(630, Y0, 120, 62, "o\u209C = S\u209C q\u209C", "read", "var(--attn)", "<b>Read</b><br>Multiply the memory by a query. In SSM language: y = C\u209C\u1D40 h\u209C.");
+    arrow(130, Y0 + 31, 172, Y0 + 31); arrow(325, Y0 + 31, 374, Y0 + 31); arrow(395, 158, 395, Y0 + 52); arrow(413, Y0 + 31, 447, Y0 + 31); arrow(570, Y0 + 31, 627, Y0 + 31);
+    T(svg, 600, Y0 + 22, "\u00D7 q\u209C", {"text-anchor":"middle", "font-size":12, style:"fill:var(--ink-2)"});
+  }
+  render(); onTheme(render);
+})();
+
+/* ---------- W2 attention playground ---------- */
+(function(){
+  var svg = $("attnSvg"), bars = $("attnBars"), sl = $("attnTemp");
+  var keys = [{k:[1,0], v:10, n:"k₁"}, {k:[0,1], v:0, n:"k₂"}, {k:[0.7,0.7], v:-5, n:"k₃"}];
+  var q = [0.8, 0.45], C = 180, U = 120, drag = false;
+  function render(){
+    clear(svg); var tau = +sl.value; $("attnTempV").textContent = fx(tau, 1) + "×";
+    var defs = S("defs", {}, svg); [["aarrA","var(--attn)"],["aarrQ","var(--ink)"]].forEach(function(p){ var mk = S("marker", {id:p[0], viewBox:"0 0 10 10", refX:8, refY:5, markerWidth:5, markerHeight:5, orient:"auto"}, defs); S("path", {d:"M0,0 L10,5 L0,10 z", style:"fill:" + p[1]}, mk); });
+    S("circle", {cx:C, cy:C, r:U, style:"fill:none;stroke:var(--grid);stroke-width:1"}, svg);
+    S("line", {x1:20, x2:340, y1:C, y2:C, style:"stroke:var(--grid)"}, svg); S("line", {y1:20, y2:340, x1:C, x2:C, style:"stroke:var(--grid)"}, svg);
+    var sc = keys.map(function(o){ return tau * (q[0]*o.k[0] + q[1]*o.k[1]) / Math.SQRT2; });
+    var mx = Math.max.apply(null, sc), ex = sc.map(function(s){ return Math.exp(s - mx); }), Z = ex.reduce(function(a,b){ return a+b; }, 0), w = ex.map(function(e){ return e/Z; });
+    keys.forEach(function(o, i){
+      var x = C + o.k[0]*U, y = C - o.k[1]*U;
+      S("line", {x1:C, y1:C, x2:x, y2:y, style:"stroke:var(--attn);stroke-width:" + (1.5 + 5*w[i]) + ";opacity:" + (0.35 + 0.65*w[i]), "marker-end":"url(#aarrA)"}, svg);
+      T(svg, x + (o.k[0] >= 0.5 ? 8 : -6), y + (o.k[1] > 0.5 ? -8 : 16), o.n + "  (v=" + o.v + ")", {"font-size":12, "font-weight":600, "text-anchor": o.k[0] > 0.9 ? "end" : "start", style:"fill:var(--ink)"});
+    });
+    var qx = C + q[0]*U, qy = C - q[1]*U;
+    S("line", {x1:C, y1:C, x2:qx, y2:qy, style:"stroke:var(--ink);stroke-width:3", "marker-end":"url(#aarrQ)"}, svg);
+    var h = S("circle", {cx:qx, cy:qy, r:11, style:"fill:var(--ink);stroke:var(--surface);stroke-width:2;cursor:grab"}, svg);
+    T(svg, qx + 14, qy - 12, "q", {"font-size":14, "font-weight":700, style:"fill:var(--ink)"});
+    h.addEventListener("pointerdown", function(ev){ drag = true; h.setPointerCapture(ev.pointerId); });
+    h.addEventListener("pointermove", function(ev){ if (!drag) return; var p = svgPoint(svg, ev); var x = (p.x - C)/U, y = (C - p.y)/U, r = Math.hypot(x, y); if (r > 1.4){ x *= 1.4/r; y *= 1.4/r; } q = [x, y]; render(); });
+    h.addEventListener("pointerup", function(){ drag = false; });
+    clear(bars); var bw = 60, gap = 50, base = 140;
+    keys.forEach(function(o, i){ var x = 40 + i*(bw + gap), hgt = 110*w[i]; S("path", {d:"M" + x + "," + base + "V" + (base - hgt + 4) + "q0,-4 4,-4h" + (bw - 8) + "q4,0 4,4V" + base + "z", style:"fill:var(--attn)"}, bars); T(bars, x + bw/2, base - hgt - 6, fx(w[i], 3), {"text-anchor":"middle", "font-size":12, "font-weight":600, style:"fill:var(--ink)"}); T(bars, x + bw/2, base + 16, "α for " + o.n, {"text-anchor":"middle", "font-size":12, style:"fill:var(--ink-2)"}); });
+    S("line", {x1:20, x2:340, y1:base, y2:base, style:"stroke:var(--axis)"}, bars);
+    var out = w.reduce(function(a, wi, i){ return a + wi*keys[i].v; }, 0);
+    var rows = keys.map(function(o, i){ var d = q[0]*o.k[0] + q[1]*o.k[1]; return "<tr><td>" + o.n + "</td><td>" + fx(d) + "</td><td>" + fx(sc[i]) + "</td><td>" + fx(w[i], 3) + "</td><td>" + o.v + "</td></tr>"; }).join("");
+    $("attnRead").innerHTML = "<table><tr><th>key</th><th>q·k</th><th>score</th><th>weight α</th><th>value</th></tr>" + rows + "</table><div style='margin-top:6px'>output o = Σ αᵢ vᵢ = <b>" + fx(out) + "</b>" + (Math.max.apply(null, w) > 0.97 ? " (near-exact lookup)" : "") + "</div>";
+  }
+  sl.addEventListener("input", render); render(); onTheme(render);
+})();
+
+/* ---------- memory lab (linear attention / delta rule) ---------- */
+function makeMemLab(id, defRule, defScen){
+  var host = $(id); if (!host) return;
+  host.classList.add("widget");
+  host.innerHTML = '<div class="wh"><span class="wt">Associative memory lab</span><span class="wd">A 2-D memory point S with scalar values. Drag the key tips. Each colored line is where the memory recalls that key&rsquo;s value correctly.</span></div>' +
+    '<div class="controls"><div class="seg" data-role="scen"><button data-p="orth">Orthogonal keys</button><button data-p="similar">Similar keys</button><button data-p="three">Three keys in 2-D</button><button data-p="over">Overwrite A</button></div></div>' +
+    '<div class="controls"><div class="seg" data-role="rule"><button data-p="add">Additive (linear attention)</button><button data-p="delta">Delta rule</button></div><label>β <input type="range" data-role="beta" min="0.1" max="1" step="0.05" value="1"><span class="val" data-role="betav"></span></label></div>' +
+    '<div class="grid2"><svg viewBox="0 0 400 400" data-role="plane" role="img" aria-label="Memory plane"></svg><div><div data-role="vals"></div><div class="readout" data-role="read"></div><p class="small" data-role="note" style="margin:10px 0 0"></p></div></div>';
+  var plane = host.querySelector("[data-role=plane]"), read = host.querySelector("[data-role=read]"), note = host.querySelector("[data-role=note]"), valsBox = host.querySelector("[data-role=vals]"), beta = host.querySelector("[data-role=beta]");
+  var COLS = ["var(--ssm)", "var(--attn)", "var(--delta)"], NAMES = ["A", "B", "C"];
+  var st = {rule:defRule, scen:defScen};
+  var scenarios = {
+    orth: {keys:[0, 90], vals:[3, -2], writes:[0, 1]},
+    similar: {keys:[0, 35], vals:[3, -2], writes:[0, 1]},
+    three: {keys:[10, 75, 140], vals:[3, -2, 1.5], writes:[0, 1, 2]},
+    over: {keys:[15, 105], vals:[3, -2], writes:[0, 1, 0], newVal:-1}
+  };
+  var cur;
+  function load(){ var s = scenarios[st.scen]; cur = {keys:s.keys.slice(), vals:s.vals.slice(), writes:s.writes.slice(), newVal:s.newVal}; buildVals(); render(); }
+  function buildVals(){
+    var h = "<div class='controls' style='margin-top:0'>";
+    cur.vals.forEach(function(v, i){ h += "<label><span class='dot' style='background:" + COLS[i] + "'></span>v<sub>" + NAMES[i] + "</sub> <input type='range' min='-4' max='4' step='0.1' value='" + v + "' data-i='" + i + "' style='width:110px'><span class='val'>" + fx(v, 1) + "</span></label>"; });
+    if (cur.newVal !== undefined) h += "<label>new v<sub>A</sub> <input type='range' min='-4' max='4' step='0.1' value='" + cur.newVal + "' data-i='new' style='width:110px'><span class='val'>" + fx(cur.newVal, 1) + "</span></label>";
+    valsBox.innerHTML = h + "</div>";
+    Array.prototype.forEach.call(valsBox.querySelectorAll("input"), function(inp){ inp.addEventListener("input", function(){ var v = +inp.value; inp.nextElementSibling.textContent = fx(v, 1); if (inp.dataset.i === "new") cur.newVal = v; else cur.vals[+inp.dataset.i] = v; render(); }); });
+  }
+  function unit(deg){ var r = deg*Math.PI/180; return [Math.cos(r), Math.sin(r)]; }
+  function render(){
+    var b = +beta.value; host.querySelector("[data-role=betav]").textContent = fx(b, 2);
+    beta.disabled = st.rule === "add"; beta.parentNode.style.opacity = st.rule === "add" ? .4 : 1;
+    var Sv = [0, 0], path = [[0, 0]], seen = {};
+    cur.writes.forEach(function(ki, step){
+      var k = unit(cur.keys[ki]), v = (cur.newVal !== undefined && seen[ki]) ? cur.newVal : cur.vals[ki]; seen[ki] = true;
+      if (st.rule === "add") { Sv = [Sv[0] + v*k[0], Sv[1] + v*k[1]]; }
+      else { var e = v - (Sv[0]*k[0] + Sv[1]*k[1]); Sv = [Sv[0] + b*e*k[0], Sv[1] + b*e*k[1]]; }
+      path.push(Sv.slice());
+    });
+    clear(plane); var C = 200, U = 34;
+    function P(x, y){ return [C + x*U, C - y*U]; }
+    var defs = S("defs", {}, plane), cp = S("clipPath", {id:id + "clip"}, defs); S("rect", {x:0, y:0, width:400, height:400}, cp);
+    COLS.forEach(function(col, ci){ var mk = S("marker", {id:id + "ar" + ci, viewBox:"0 0 10 10", refX:8, refY:5, markerWidth:5, markerHeight:5, orient:"auto"}, defs); S("path", {d:"M0,0 L10,5 L0,10 z", style:"fill:" + col}, mk); });
+    for (var g = -5; g <= 5; g++){ var a = P(g, -6), bb = P(g, 6); S("line", {x1:a[0], y1:a[1], x2:bb[0], y2:bb[1], style:"stroke:var(--grid);stroke-width:" + (g === 0 ? 1.4 : .6)}, plane); a = P(-6, g); bb = P(6, g); S("line", {x1:a[0], y1:a[1], x2:bb[0], y2:bb[1], style:"stroke:var(--grid);stroke-width:" + (g === 0 ? 1.4 : .6)}, plane); }
+    var lines = S("g", {"clip-path":"url(#" + id + "clip)"}, plane);
+    var active = {}; cur.writes.forEach(function(ki){ active[ki] = true; });
+    Object.keys(active).forEach(function(kis){ var ki = +kis, k = unit(cur.keys[ki]), perp = [-k[1], k[0]];
+      var targets = [cur.vals[ki]]; if (cur.newVal !== undefined && ki === 0) targets = [cur.vals[0], cur.newVal];
+      targets.forEach(function(v, j){ var old = targets.length > 1 && j === 0; var p0 = [v*k[0], v*k[1]], a = P(p0[0] - 9*perp[0], p0[1] - 9*perp[1]), bb = P(p0[0] + 9*perp[0], p0[1] + 9*perp[1]);
+        S("line", {x1:a[0], y1:a[1], x2:bb[0], y2:bb[1], style:"stroke:" + COLS[ki] + ";stroke-width:" + (old ? 1.2 : 2) + ";opacity:" + (old ? .35 : .8) + (old ? ";stroke-dasharray:5 4" : "")}, lines);
+        var lp = P(p0[0] + 4.2*perp[0], p0[1] + 4.2*perp[1]); T(plane, lp[0], lp[1], "S·k" + NAMES[ki] + " = " + fx(v, 1) + (old ? " (old)" : ""), {"font-size":11, style:"fill:var(--ink-2)"}); });
+      var kt = P(2.2*k[0], 2.2*k[1]);
+      S("line", {x1:C, y1:C, x2:kt[0], y2:kt[1], style:"stroke:" + COLS[ki] + ";stroke-width:2.5", "marker-end":"url(#" + id + "ar" + ki + ")"}, plane);
+      var hnd = S("circle", {cx:kt[0], cy:kt[1], r:9, style:"fill:" + COLS[ki] + ";stroke:var(--surface);stroke-width:2;cursor:grab"}, plane);
+      T(plane, kt[0] + 10, kt[1] - 10, "k" + NAMES[ki], {"font-size":13, "font-weight":700, style:"fill:var(--ink)"});
+      (function(ki, hnd){ var dragging = false; hnd.addEventListener("pointerdown", function(ev){ dragging = true; hnd.setPointerCapture(ev.pointerId); }); hnd.addEventListener("pointermove", function(ev){ if (!dragging) return; var p = svgPoint(plane, ev); cur.keys[ki] = Math.atan2(C - p.y, p.x - C)*180/Math.PI; render(); }); hnd.addEventListener("pointerup", function(){ dragging = false; }); })(ki, hnd);
+    });
+    var d = path.map(function(p, i){ var q = P(p[0], p[1]); return (i ? "L" : "M") + q[0].toFixed(1) + "," + q[1].toFixed(1); }).join("");
+    S("path", {d:d, style:"fill:none;stroke:var(--ink);stroke-width:1.5;opacity:.6"}, plane);
+    path.forEach(function(p, i){ var q = P(p[0], p[1]); if (i > 0 && i < path.length - 1) { S("circle", {cx:q[0], cy:q[1], r:3.5, style:"fill:var(--ink-2)"}, plane); T(plane, q[0] + 6, q[1] + 14, "after write " + i, {"font-size":10, style:"fill:var(--muted)"}); } });
+    var fp = P(Sv[0], Sv[1]); S("circle", {cx:fp[0], cy:fp[1], r:7, style:"fill:var(--ink);stroke:var(--surface);stroke-width:2"}, plane); T(plane, fp[0] + 10, fp[1] + 18, "memory S", {"font-size":12, "font-weight":700, style:"fill:var(--ink)"});
+    var rows = "", worst = 0;
+    Object.keys(active).forEach(function(kis){ var ki = +kis, k = unit(cur.keys[ki]), target = (cur.newVal !== undefined && ki === 0) ? cur.newVal : cur.vals[ki], got = Sv[0]*k[0] + Sv[1]*k[1], err = got - target; worst = Math.max(worst, Math.abs(err)); var ok = Math.abs(err) < 0.05;
+      rows += "<tr><td><span class='dot' style='background:" + COLS[ki] + "'></span>key " + NAMES[ki] + "</td><td>" + fx(target, 2) + "</td><td>" + fx(got, 2) + "</td><td class='" + (ok ? "ok" : "err") + "'>" + (ok ? "✓ " : "✗ ") + fx(err, 2) + "</td></tr>"; });
+    read.innerHTML = "<table><tr><th>stored</th><th>target v</th><th>recalled S·k</th><th>error</th></tr>" + rows + "</table><div style='margin-top:6px'>memory S = (" + fx(Sv[0]) + ", " + fx(Sv[1]) + ")</div>";
+    var kd = Object.keys(active).length;
+    var txt = st.rule === "add" ? "Additive writes just add v·k to the memory. Recall of each key is its own value plus crosstalk from every other key, proportional to the cosine between keys. " : "Each delta write moves the memory perpendicularly toward the newest key’s line (fully onto it when β = 1). ";
+    if (st.scen === "three") txt += "With three keys in a 2-D memory, the three lines generally do not meet at one point, so no memory can recall all three: that is capacity, not a bad update rule.";
+    else if (st.scen === "over") txt += st.rule === "add" ? "Overwriting A by adding a new value leaves the old one in place: A now recalls the sum." : "The second write to A lands exactly on A’s new line, and B is untouched only if kB is perpendicular to kA. Drag the keys to see the trade-off.";
+    else if (st.scen === "orth") txt += "Perpendicular keys do not interfere: every rule works.";
+    else txt += "Similar keys interfere: their lines are nearly parallel.";
+    note.textContent = txt;
+  }
+  host.querySelectorAll("[data-role=scen] button").forEach(function(btn){ btn.classList.toggle("on", btn.dataset.p === st.scen); btn.addEventListener("click", function(){ host.querySelectorAll("[data-role=scen] button").forEach(function(x){ x.classList.toggle("on", x === btn); }); st.scen = btn.dataset.p; load(); }); });
+  host.querySelectorAll("[data-role=rule] button").forEach(function(btn){ btn.classList.toggle("on", btn.dataset.p === st.rule); btn.addEventListener("click", function(){ host.querySelectorAll("[data-role=rule] button").forEach(function(x){ x.classList.toggle("on", x === btn); }); st.rule = btn.dataset.p; render(); }); });
+  beta.addEventListener("input", render);
+  load(); onTheme(render);
+}
+makeMemLab("w-mem1", "add", "three");
+makeMemLab("w-mem2", "delta", "over");
+
+/* ---------- W4 leaky bucket ---------- */
+(function(){
+  var preset = "pulse", svg = $("bucketSvg"), sa = $("bucketA"), sd = $("bucketD"), K = 60;
+  setupSeg("bucketPreset", function(p){ preset = p; render(); });
+  function input(){ var u = [], r = seeded(11); for (var k = 0; k < K; k++){ var v = 0; if (preset === "pulse") v = k === 5 ? 1 : 0; else if (preset === "two") v = (k === 5 || k === 25) ? 1 : 0; else if (preset === "step") v = k >= 10 ? 1 : 0; else v = Math.max(0, 0.5 + (r() - 0.5)*1.4) * (k > 3 ? 1 : 0); u.push(v); } return u; }
+  function render(){
+    var a = +sa.value, D = +sd.value; $("bucketAv").textContent = fx(a, 2); $("bucketDv").textContent = fx(D, 2);
+    var ab = Math.exp(a*D), bb = (ab - 1)/a, u = input(), h = [], s = 0; u.forEach(function(x){ s = ab*s + bb*x; h.push(s); });
+    var half = Math.log(2)/(Math.abs(a)*D);
+    $("bucketTiles").innerHTML = '<div class="tile"><div class="l">' + tex("\\bar a=e^{a\\Delta}") + '</div><div class="v">' + fx(ab, 3) + '</div><div class="s">fraction of memory kept per step</div></div>' +
+      '<div class="tile"><div class="l">' + tex("\\bar b=(e^{a\\Delta}-1)/a") + '</div><div class="v">' + fx(bb, 3) + '</div><div class="s">how much each input adds</div></div>' +
+      '<div class="tile"><div class="l">Half-life</div><div class="v">' + (half >= 100 ? compact(half) : fx(half, 1)) + ' steps</div><div class="s">' + tex("\\ln 2/(|a|\\Delta)") + '</div></div>' +
+      '<div class="tile"><div class="l">Memory after 20 steps</div><div class="v">' + (Math.pow(ab, 20)*100).toFixed(1) + '%</div><div class="s">' + tex("\\bar a^{20}") + '</div></div>';
+    clear(svg); var L = 56, R = 740, x = function(k){ return L + (k + 0.5)*(R - L)/K; }, bw = Math.min(8, (R - L)/K - 2);
+    T(svg, L - 8, 18, "input", {"text-anchor":"end", "font-size":11, style:"fill:var(--muted)"});
+    var y0 = 74, hu = 52; S("line", {x1:L, x2:R, y1:y0, y2:y0, style:"stroke:var(--axis)"}, svg);
+    u.forEach(function(v, k){ if (v > 0) S("rect", {x:x(k) - bw/2, y:y0 - v*hu, width:bw, height:v*hu, rx:2, style:"fill:var(--axis)"}, svg); });
+    var top = 100, bot = 222, hmax = Math.max(1e-9, Math.max.apply(null, h)); var ymax = hmax*1.1;
+    [0, 0.5, 1].forEach(function(f){ var yy = bot - f*(bot - top); S("line", {x1:L, x2:R, y1:yy, y2:yy, style:"stroke:var(--grid)"}, svg); T(svg, L - 8, yy + 4, fx(f*ymax, 3), {"text-anchor":"end", "font-size":10.5, style:"fill:var(--muted)"}); });
+    T(svg, L - 8, top - 8, "state h", {"text-anchor":"end", "font-size":11, style:"fill:var(--muted)"});
+    var d = h.map(function(v, k){ return (k ? "L" : "M") + x(k).toFixed(1) + "," + (bot - v/ymax*(bot - top)).toFixed(1); }).join("");
+    S("path", {d:d + "L" + x(K-1) + "," + bot + "L" + x(0) + "," + bot + "z", style:"fill:var(--ssm-wash)"}, svg);
+    S("path", {d:d, style:"fill:none;stroke:var(--ssm);stroke-width:2;stroke-linejoin:round"}, svg);
+    for (var k = 0; k < K; k += 10) T(svg, x(k), bot + 16, "k=" + k, {"text-anchor":"middle", "font-size":10.5, style:"fill:var(--muted)"});
+    var hit = S("rect", {x:L, y:0, width:R - L, height:bot, style:"fill:transparent"}, svg);
+    hoverTip(hit, function(ev){ var p = svgPoint(svg, ev), k = Math.max(0, Math.min(K-1, Math.floor((p.x - L)/(R - L)*K))); return "<b>step k = " + k + "</b><br>input u = " + fx(u[k], 2) + "<br>state h = " + fx(h[k], 4); });
+  }
+  sa.addEventListener("input", render); sd.addEventListener("input", render); render(); onTheme(render);
+})();
+
+/* ---------- W5 kernel builder ---------- */
+(function(){
+  var s1 = $("kA1"), s2 = $("kA2"), s3 = $("kTh"), ks = $("kernSvg"), ko = $("kernOut"), N = 40, rr = 0.9, w = [0.5, 0.3, 0.4];
+  var rnd = seeded(5), u = []; for (var i = 0; i < N; i++) u.push(rnd() < 0.3 ? (rnd()*2 - 0.6) : 0);
+  function render(){
+    var a1 = +s1.value, a2 = +s2.value, th = +s3.value; $("kA1v").textContent = fx(a1, 2); $("kA2v").textContent = fx(a2, 3); $("kThv").textContent = fx(th, 2);
+    var K = []; for (var k = 0; k < N; k++) K.push(w[0]*Math.pow(a1, k) + w[1]*Math.pow(a2, k) + w[2]*Math.pow(rr, k)*Math.cos(th*k));
+    var conv = []; for (var t = 0; t < N; t++){ var s = 0; for (var j = 0; j <= t; j++) s += K[t - j]*u[j]; conv.push(s); }
+    var h1 = 0, h2 = 0, zr = 0, zi = 0, rec = [];
+    for (var t2 = 0; t2 < N; t2++){ h1 = a1*h1 + u[t2]; h2 = a2*h2 + u[t2]; var c = rr*Math.cos(th), sn = rr*Math.sin(th), nr = c*zr - sn*zi + u[t2], ni = sn*zr + c*zi; zr = nr; zi = ni; rec.push(w[0]*h1 + w[1]*h2 + w[2]*zr); }
+    var md = 0; for (var q = 0; q < N; q++) md = Math.max(md, Math.abs(rec[q] - conv[q]));
+    function panel(svg, vals, kind){
+      clear(svg); var L = 34, R = 350, top = 12, bot = 180, hi = Math.max(0, Math.max.apply(null, vals))*1.08, lo = Math.min(0, Math.min.apply(null, vals))*1.08; if (hi - lo < 1e-9) hi = 1; var y = function(v){ return bot - (v - lo)/(hi - lo)*(bot - top); }, mid = y(0), mx = hi*1.1, x = function(k){ return L + (k + 0.5)*(R - L)/N; };
+      S("line", {x1:L, x2:R, y1:mid, y2:mid, style:"stroke:var(--axis)"}, svg);
+      T(svg, L - 6, y(mx/1.1) + 4, fx(mx/1.1, 2), {"text-anchor":"end", "font-size":10, style:"fill:var(--muted)"}); T(svg, L - 6, mid + 4, "0", {"text-anchor":"end", "font-size":10, style:"fill:var(--muted)"});
+      if (kind === "bars"){ vals.forEach(function(v, k){ var yy = y(v), bw = (R - L)/N - 2; S("rect", {x:x(k) - bw/2, y:Math.min(yy, mid), width:bw, height:Math.max(1, Math.abs(yy - mid)), rx:1.5, style:"fill:var(--ssm)"}, svg); }); }
+      else { var d = vals.map(function(v, k){ return (k ? "L" : "M") + x(k).toFixed(1) + "," + y(v).toFixed(1); }).join(""); S("path", {d:d, style:"fill:none;stroke:var(--ssm);stroke-width:2"}, svg); conv.forEach(function(v, k){ S("circle", {cx:x(k), cy:y(v), r:2.6, style:"fill:var(--surface);stroke:var(--ink);stroke-width:1.2"}, svg); }); }
+      T(svg, R, bot + 16, kind === "bars" ? "k (steps ago) →" : "time →", {"text-anchor":"end", "font-size":10.5, style:"fill:var(--muted)"});
+    }
+    panel(ks, K, "bars"); panel(ko, rec, "line");
+    $("kernRead").innerHTML = "max |recurrence − convolution| over 40 steps = <b>" + md.toExponential(1) + "</b> (floating-point round-off): the two computations are the same function.";
+  }
+  [s1, s2, s3].forEach(function(s){ s.addEventListener("input", render); }); render(); onTheme(render);
+})();
+
+/* ---------- W6 HiPPO ---------- */
+(function(){
+  var sn = $("hipN"), stt = $("hipT"), svg = $("hipSvg");
+  function f(s){ return 0.8*Math.sin(1.3*s) + 0.5*Math.sin(3.1*s + 1) + 0.3*Math.sin(7.3*s + 2) + 0.12*s - 0.4; }
+  function legendre(n, x){ if (n === 0) return 1; var p0 = 1, p1 = x; for (var k = 1; k < n; k++){ var p2 = ((2*k + 1)*x*p1 - k*p0)/(k + 1); p0 = p1; p1 = p2; } return p1; }
+  function render(){
+    var N = +sn.value, t = +stt.value; $("hipNv").textContent = N + " numbers"; $("hipTv").textContent = fx(t, 2);
+    var M = 800, c = [];
+    for (var n = 0; n < N; n++){ var acc = 0; for (var i = 0; i <= M; i++){ var x = -1 + 2*i/M, s = (x + 1)/2*t, wgt = (i === 0 || i === M) ? 0.5 : 1; acc += wgt*f(s)*legendre(n, x); } c.push((2*n + 1)/2*acc*(2/M)); }
+    function rec(s){ var x = 2*s/t - 1, v = 0; for (var n = 0; n < N; n++) v += c[n]*legendre(n, x); return v; }
+    clear(svg); var L = 50, R = 740, top = 14, bot = 206, ymin = -2, ymax = 2.2, X = function(s){ return L + s/10*(R - L); }, Y = function(v){ return bot - (v - ymin)/(ymax - ymin)*(bot - top); };
+    [-2, -1, 0, 1, 2].forEach(function(v){ S("line", {x1:L, x2:R, y1:Y(v), y2:Y(v), style:"stroke:var(--grid)"}, svg); T(svg, L - 8, Y(v) + 4, String(v), {"text-anchor":"end", "font-size":10.5, style:"fill:var(--muted)"}); });
+    S("rect", {x:X(t), y:top, width:R - X(t), height:bot - top, style:"fill:var(--surface-2)"}, svg); T(svg, (X(t) + R)/2, top + 16, "not seen yet", {"text-anchor":"middle", "font-size":11, style:"fill:var(--muted)"});
+    var d1 = "", d2 = "", err = 0, cnt = 0;
+    for (var i2 = 0; i2 <= 400; i2++){ var s2 = t*i2/400; d1 += (i2 ? "L" : "M") + X(s2).toFixed(1) + "," + Y(f(s2)).toFixed(1); var r = rec(s2); d2 += (i2 ? "L" : "M") + X(s2).toFixed(1) + "," + Y(Math.max(ymin, Math.min(ymax, r))).toFixed(1); err += (r - f(s2))*(r - f(s2)); cnt++; }
+    S("path", {d:d1, style:"fill:none;stroke:var(--muted);stroke-width:2"}, svg); S("path", {d:d2, style:"fill:none;stroke:var(--ssm);stroke-width:2"}, svg);
+    S("line", {x1:X(t), x2:X(t), y1:top, y2:bot, style:"stroke:var(--ink);stroke-width:1"}, svg); T(svg, X(t), bot + 16, "now (t = " + fx(t, 1) + ")", {"text-anchor":"middle", "font-size":11, style:"fill:var(--ink-2)"});
+    T(svg, L, bot + 16, "s = 0", {"font-size":11, style:"fill:var(--muted)"});
+    $("hipRead").innerHTML = "<b>" + N + "</b> coefficients summarize <b>" + fx(t, 1) + "</b> time units of history. RMS reconstruction error: <b>" + fx(Math.sqrt(err/cnt), 3) + "</b>. First coefficients (the state): " + c.slice(0, 5).map(function(v){ return fx(v, 2); }).join(", ") + (N > 5 ? ", …" : "");
+  }
+  sn.addEventListener("input", render); stt.addEventListener("input", render); render(); onTheme(render);
+})();
+
+/* ---------- W7 selectivity ---------- */
+(function(){
+  var toks = ["The","password","is","7",".","Then","we","chatted","about","the","weather",",","the","traffic",",","lunch","plans","and","football","for","hours",".","Password","?"];
+  var z = toks.map(function(w){ return w === "7" ? 3 : -4; });
+  var sd = $("selD"), ss = $("selS"), svg = $("selSvg");
+  function softplus(x){ return x > 30 ? x : Math.log(1 + Math.exp(x)); }
+  function weights(D){ var T = D.length, ab = D.map(function(d){ return Math.exp(-d); }), bb = D.map(function(d){ return 1 - Math.exp(-d); }), w = []; for (var j = 0; j < T; j++){ var p = bb[j]; for (var r = j + 1; r < T; r++) p *= ab[r]; w.push(p); } var s = w.reduce(function(a, b){ return a + b; }, 0); return {w:w, share:w.map(function(v){ return v/s; }), ab:ab, bb:bb}; }
+  function render(){
+    var Dlti = +sd.value, st = +ss.value; $("selDv").textContent = fx(Dlti, 2); $("selSv").textContent = fx(st, 2);
+    var A = weights(toks.map(function(){ return Dlti; })), Dsel = z.map(function(v){ return softplus(st*v); }), B = weights(Dsel), i7 = 3;
+    $("selTiles").innerHTML = '<div class="tile"><div class="l">Share of memory from &ldquo;7&rdquo;, time-invariant</div><div class="v">' + (100*A.share[i7]).toFixed(1) + '%</div><div class="s">' + tex("\\Delta=" + fx(Dlti, 2)) + ' for every token</div></div>' +
+      '<div class="tile"><div class="l">Share of memory from &ldquo;7&rdquo;, selective</div><div class="v">' + (100*B.share[i7]).toFixed(1) + '%</div><div class="s">' + tex("\\Delta_{7}=" + fx(Dsel[i7], 2) + ",\\ \\Delta_{\\text{filler}}=" + fx(Dsel[0], 3)) + '</div></div>';
+    clear(svg); var L = 120, R = 750, n = toks.length, cw = (R - L)/n, bw = Math.min(20, cw - 5);
+    function row(y0, hgt, res, color, label){
+      T(svg, L - 10, y0 - hgt/2, label, {"text-anchor":"end", "font-size":11.5, style:"fill:var(--ink-2)"});
+      S("line", {x1:L, x2:R, y1:y0, y2:y0, style:"stroke:var(--axis)"}, svg);
+      res.share.forEach(function(v, j){ var hh = Math.max(0.5, v*hgt), x = L + j*cw + (cw - bw)/2; var r = S("path", {d:"M" + x + "," + y0 + "V" + (y0 - hh + Math.min(3, hh)) + "q0,-" + Math.min(3, hh) + " " + Math.min(3, hh) + ",-" + Math.min(3, hh) + "h" + (bw - 2*Math.min(3, hh)) + "q" + Math.min(3, hh) + ",0 " + Math.min(3, hh) + "," + Math.min(3, hh) + "V" + y0 + "z", style:"fill:" + color}, svg);
+        if (j === i7) T(svg, x + bw/2, y0 - hh - 5, (100*v).toFixed(0) + "%", {"text-anchor":"middle", "font-size":11, "font-weight":700, style:"fill:var(--ink)"});
+        var hit = S("rect", {x:L + j*cw, y:y0 - hgt, width:cw, height:hgt, style:"fill:transparent"}, svg);
+        hoverTip(hit, function(){ return "<b>&ldquo;" + toks[j] + "&rdquo;</b> (" + label + ")<br>Δ = " + fx(-Math.log(res.ab[j]), 3) + ", ā = " + fx(res.ab[j], 3) + ", b̄ = " + fx(res.bb[j], 3) + "<br>share of final memory: " + (100*v).toFixed(2) + "%"; });
+      });
+    }
+    row(100, 80, A, "var(--muted)", "time-invariant");
+    row(200, 80, B, "var(--ssm)", "selective");
+    toks.forEach(function(w, j){ var x = L + j*cw + cw/2; T(svg, x, 222, w, {"text-anchor":"end", "font-size":11, "font-weight": j === i7 ? 700 : 400, transform:"rotate(-45 " + x + " 222)", style:"fill:" + (j === i7 ? "var(--ink)" : "var(--ink-2)")}); });
+  }
+  sd.addEventListener("input", render); ss.addEventListener("input", render); render(); onTheme(render);
+})();
+
+/* ---------- W8 parallel scan ---------- */
+(function(){
+  var svg = $("scanSvg"), N = 8, levels = [], round = 0, rnd = seeded(21);
+  function newData(){ var base = []; for (var i = 0; i < N; i++) base.push([0.3 + 0.7*rnd(), Math.round((rnd()*2 - 1)*100)/100]); levels = [base]; for (var r = 1; r <= 3; r++){ var d = 1 << (r - 1), prev = levels[r - 1], cur = []; for (var j = 0; j < N; j++){ if (j >= d){ var e = prev[j - d], o = prev[j]; cur.push([o[0]*e[0], o[0]*e[1] + o[1]]); } else cur.push(prev[j].slice()); } levels.push(cur); } round = 0; render(); }
+  function render(){
+    clear(svg); var L = 70, R = 750, cw = (R - L)/N, bh = 46, gap = 30;
+    for (var r = 0; r <= 3; r++){
+      var y = 10 + r*(bh + gap); T(svg, L - 10, y + bh/2 + 4, r === 0 ? "input" : "round " + r, {"text-anchor":"end", "font-size":12, "font-weight":600, style:"fill:" + (r > round ? "var(--muted)" : "var(--ink-2)")});
+      if (r > round){ for (var jj = 0; jj < N; jj++) S("rect", {x:L + jj*cw + 4, y:y, width:cw - 8, height:bh, rx:8, style:"fill:none;stroke:var(--grid);stroke-width:1.2;stroke-dasharray:4 4"}, svg); continue; }
+      for (var j = 0; j < N; j++){
+        var d = r > 0 ? 1 << (r - 1) : 0, changed = r > 0 && j >= d, x = L + j*cw + 4, v = levels[r][j];
+        if (changed){ var py = 10 + (r - 1)*(bh + gap) + bh; S("line", {x1:L + (j - d)*cw + cw/2, y1:py, x2:x + (cw - 8)/2, y2:y, style:"stroke:var(--ssm);stroke-width:1.3;opacity:.7"}, svg); S("line", {x1:L + j*cw + cw/2, y1:py, x2:x + (cw - 8)/2, y2:y, style:"stroke:var(--ink-2);stroke-width:1;opacity:.5"}, svg); }
+        S("rect", {x:x, y:y, width:cw - 8, height:bh, rx:8, style:"fill:" + (changed ? "var(--ssm-wash)" : "var(--surface-2)") + ";stroke:" + (changed && r === round ? "var(--ssm)" : "var(--ring)") + ";stroke-width:1.2"}, svg);
+        T(svg, x + (cw - 8)/2, y + 18, "a=" + fx(v[0], 2), {"text-anchor":"middle", "font-size":11, style:"fill:var(--ink-2)"});
+        T(svg, x + (cw - 8)/2, y + 35, "b=" + fx(v[1], 2), {"text-anchor":"middle", "font-size":12, "font-weight":700, style:"fill:var(--ink)"});
+      }
+    }
+    $("scanInfo").textContent = round < 3 ? "Round " + round + " of 3" + (round > 0 ? ": box i combined with box i−" + (1 << (round - 1)) : "") : "Done: 3 rounds for 8 elements (log₂ 8 = 3).";
+    var h = 0, seq = levels[0].map(function(p){ h = p[0]*h + p[1]; return h; });
+    var fin = levels[3].map(function(p){ return p[1]; });
+    var ok = seq.every(function(v, i){ return Math.abs(v - fin[i]) < 1e-9; });
+    $("scanRead").innerHTML = "Sequential loop hᵢ = aᵢhᵢ₋₁ + bᵢ: <b>" + seq.map(function(v){ return fx(v, 2); }).join(", ") + "</b>" + (round >= 3 ? "<br>Scan result (b parts of the last row): <b>" + fin.map(function(v){ return fx(v, 2); }).join(", ") + "</b> " + (ok ? "<span class='ok'>✓ identical</span>" : "") : "");
+  }
+  $("scanStep").addEventListener("click", function(){ if (round < 3){ round++; render(); } });
+  $("scanReset").addEventListener("click", function(){ round = 0; render(); });
+  $("scanNew").addEventListener("click", newData);
+  newData(); onTheme(render);
+})();
+
+/* ---------- W9 SSD mask ---------- */
+(function(){
+  var svg = $("ssdSvg"), N = 8, a = [0.9, 0.95, 0.55, 0.92, 0.97, 0.3, 0.9, 0.95], chunk = $("ssdChunk"), drag = -1;
+  setupSeg("ssdPreset", function(p){ if (p === "lin") a = a.map(function(){ return 1; }); else if (p === "ret") a = a.map(function(){ return 0.8; }); else a = [0.9, 0.95, 0.55, 0.92, 0.97, 0.3, 0.9, 0.95]; render(); });
+  chunk.addEventListener("change", render);
+  function Lv(t, s){ var p = 1; for (var r = s + 1; r <= t; r++) p *= a[r]; return p; }
+  function render(){
+    clear(svg); var bx = 30, bw = 26, bg = 8, by0 = 300, bh = 220, surf = cssv("--surface-2"), ssm = cssv("--ssm");
+    T(svg, bx, 40, "decay aₜ per token (drag)", {"font-size":12, "font-weight":600, style:"fill:var(--ink-2)"});
+    S("line", {x1:bx - 4, x2:bx + N*(bw + bg), y1:by0, y2:by0, style:"stroke:var(--axis)"}, svg);
+    var area = S("rect", {x:bx - 4, y:by0 - bh - 10, width:N*(bw + bg) + 8, height:bh + 30, style:"fill:transparent"}, svg);
+    for (var i = 0; i < N; i++){ var x = bx + i*(bw + bg), hh = a[i]*bh; S("rect", {x:x, y:by0 - hh, width:bw, height:Math.max(1, hh), rx:4, style:"fill:var(--ssm);pointer-events:none"}, svg); T(svg, x + bw/2, by0 - hh - 6, fx(a[i], 2), {"text-anchor":"middle", "font-size":10.5, style:"fill:var(--ink);pointer-events:none"}); T(svg, x + bw/2, by0 + 16, "a" + "₁₂₃₄₅₆₇₈"[i], {"text-anchor":"middle", "font-size":11, style:"fill:var(--ink-2);pointer-events:none"}); }
+    function setFrom(ev){ var p = svgPoint(svg, ev); var i = Math.floor((p.x - bx)/(bw + bg)); if (drag >= 0) i = drag; if (i < 0 || i >= N) return; drag = i; a[i] = Math.max(0, Math.min(1, (by0 - p.y)/bh)); render(); }
+    area.addEventListener("pointerdown", function(ev){ area.setPointerCapture(ev.pointerId); drag = -1; setFrom(ev); });
+    area.addEventListener("pointermove", function(ev){ if (ev.buttons) setFrom(ev); });
+    area.addEventListener("pointerup", function(){ drag = -1; });
+    var mx0 = 360, my0 = 30, cs = 36;
+    T(svg, mx0, my0 - 10, "mask L (row t = output, column s = input)", {"font-size":12, "font-weight":600, style:"fill:var(--ink-2)"});
+    for (var t = 0; t < N; t++) for (var s = 0; s < N; s++){
+      var x2 = mx0 + s*cs, y2 = my0 + t*cs, v = s <= t ? Lv(t, s) : null;
+      var cell = S("rect", {x:x2, y:y2, width:cs - 3, height:cs - 3, rx:4, style:"fill:" + (v === null ? surf : mix(surf, ssm, 0.08 + 0.92*v))}, svg);
+      if (v !== null){ T(svg, x2 + (cs - 3)/2, y2 + cs/2 + 2, fx(v, 2), {"text-anchor":"middle", "font-size":9.5, style:"fill:" + (v > 0.55 ? "#fff" : "var(--ink-2)") + ";pointer-events:none"});
+        (function(t, s, v){ hoverTip(cell, function(){ if (t === s) return "<b>L(" + (t+1) + "," + (s+1) + ")</b> = 1 (no decay yet)"; var parts = []; for (var r = s + 1; r <= t; r++) parts.push("a" + (r + 1)); return "<b>L(" + (t+1) + "," + (s+1) + ")</b> = " + parts.join("·") + " = " + fx(v, 3) + "<br>how much of input " + (s+1) + " survives at output " + (t+1); }); })(t, s, v); }
+    }
+    if (chunk.checked){ var m = mx0 + 4*cs - 1.5; S("line", {x1:m, x2:m, y1:my0 - 4, y2:my0 + N*cs, style:"stroke:var(--ink);stroke-width:2"}, svg); S("line", {x1:mx0 - 4, x2:mx0 + N*cs, y1:my0 + 4*cs - 1.5, y2:my0 + 4*cs - 1.5, style:"stroke:var(--ink);stroke-width:2"}, svg);
+      S("rect", {x:mx0 - 1, y:my0 + 4*cs - 1, width:4*cs - 1, height:4*cs - 1, rx:5, style:"fill:none;stroke:var(--delta);stroke-width:2.5"}, svg);
+      T(svg, mx0, my0 + N*cs + 18, "Green outline: an inter-chunk block, rank 1 (Λₜ / Λₛ), passed through the state", {"font-size":11, "font-weight":600, style:"fill:var(--ink)"});
+      T(svg, mx0, my0 + N*cs + 34, "Diagonal 4×4 blocks: computed directly as dense matrix multiplications", {"font-size":11, style:"fill:var(--ink-2)"}); }
+  }
+  render(); onTheme(render);
+})();
+
+/* ---------- W11 parity ---------- */
+(function(){
+  var sl = $("parL"), A = $("parA"), B = $("parB");
+  function plot(svg, f, ymin, ymax, ticks, thr){
+    clear(svg); var L = 40, R = 350, top = 10, bot = 190, X = function(n){ return L + n/12*(R - L); }, Y = function(v){ return bot - (v - ymin)/(ymax - ymin)*(bot - top); };
+    ticks.forEach(function(v){ S("line", {x1:L, x2:R, y1:Y(v), y2:Y(v), style:"stroke:var(--grid)"}, svg); T(svg, L - 6, Y(v) + 4, String(v), {"text-anchor":"end", "font-size":10.5, style:"fill:var(--muted)"}); });
+    if (thr !== undefined) { S("line", {x1:L, x2:R, y1:Y(thr), y2:Y(thr), style:"stroke:var(--ink);stroke-width:1.2;opacity:.6"}, svg); T(svg, R, Y(thr) - 5, "threshold", {"text-anchor":"end", "font-size":10.5, style:"fill:var(--ink-2)"}); }
+    for (var n = 0; n <= 12; n++){ var v = f(n), x = X(n), y = Y(v); if (n % 2 === 0) S("circle", {cx:x, cy:y, r:5, style:"fill:var(--ssm);stroke:var(--surface);stroke-width:2"}, svg); else S("rect", {x:x - 4.5, y:y - 4.5, width:9, height:9, style:"fill:var(--surface);stroke:var(--attn);stroke-width:2"}, svg); }
+    for (var n2 = 0; n2 <= 12; n2 += 2) T(svg, X(n2), bot + 15, String(n2), {"text-anchor":"middle", "font-size":10.5, style:"fill:var(--muted)"});
+    T(svg, (L + R)/2, bot + 29, "number of 1s in the input", {"text-anchor":"middle", "font-size":11, style:"fill:var(--ink-2)"});
+  }
+  function render(){ var l = +sl.value; $("parLv").textContent = fx(l, 2); plot(A, function(n){ return Math.pow(l, n); }, 0, 1.05, [0, 0.5, 1]); plot(B, function(n){ return n % 2 ? -1 : 1; }, -1.25, 1.25, [-1, 0, 1], 0); }
+  sl.addEventListener("input", render); render(); onTheme(render);
+})();
+
+/* ---------- W12 pigeonholes ---------- */
+(function(){
+  var sn = $("pigN"), sb = $("pigB"), svg = $("pigSvg");
+  function render(){
+    var n = +sn.value, b = +sb.value, ns = 1 << n, nb = 1 << b; $("pigNv").textContent = n + " (" + ns + " strings)"; $("pigBv").textContent = b + " (" + nb + " states)";
+    var rows = Math.max(ns, nb), rh = 15, H = rows*rh + 50; svg.setAttribute("viewBox", "0 0 760 " + H); clear(svg);
+    var cnt = []; for (var i = 0; i < nb; i++) cnt.push(0); for (var j = 0; j < ns; j++) cnt[j % nb]++;
+    var ys = function(i, tot){ return 30 + (i + 0.5)*(rows*rh/tot); };
+    T(svg, 170, 16, "input strings", {"text-anchor":"middle", "font-size":12, "font-weight":600, style:"fill:var(--ink-2)"}); T(svg, 590, 16, "possible states", {"text-anchor":"middle", "font-size":12, "font-weight":600, style:"fill:var(--ink-2)"});
+    for (var j2 = 0; j2 < ns; j2++){ var st = j2 % nb, col = cnt[st] > 1 ? "var(--bad)" : "var(--delta)"; S("line", {x1:215, y1:ys(j2, ns), x2:545, y2:ys(st, nb), style:"stroke:" + col + ";stroke-width:" + (cnt[st] > 1 ? 1.4 : 1.2) + ";opacity:.7"}, svg); var s = j2.toString(2); while (s.length < n) s = "0" + s; T(svg, 205, ys(j2, ns) + 4, s, {"text-anchor":"end", "font-size":11, "font-family":"ui-monospace, Menlo, monospace", style:"fill:var(--ink)"}); }
+    for (var i2 = 0; i2 < nb; i2++){ var y = ys(i2, nb); S("rect", {x:550, y:y - 6, width:80, height:12, rx:3, style:"fill:" + (cnt[i2] > 1 ? "var(--surface-3)" : "var(--surface-2)") + ";stroke:var(--ring)"}, svg); var s2 = i2.toString(2); while (s2.length < b) s2 = "0" + s2; T(svg, 590, y + 4, "state " + s2, {"text-anchor":"middle", "font-size":10, style:"fill:var(--ink-2)"}); if (cnt[i2] > 1) T(svg, 640, y + 4, "✗ " + cnt[i2] + " strings collide", {"font-size":10.5, style:"fill:var(--bad)"}); }
+    T(svg, 380, H - 8, ns > nb ? (ns + " strings but only " + nb + " states: at least " + (ns - nb) + " strings cannot be told apart, so copying must fail.") : ("Enough states: every string can get its own state (" + ns + " ≤ " + nb + ")."), {"text-anchor":"middle", "font-size":12, "font-weight":600, style:"fill:" + (ns > nb ? "var(--bad)" : "var(--good)")});
+  }
+  sn.addEventListener("input", render); sb.addEventListener("input", render); render(); onTheme(render);
+})();
+
+/* ---------- paper cards ---------- */
+var tok = window.__ui.tok;
+(function(){
+  var P = [
+    ["Transformer","2017 · NeurIPS","attn","Fully parallel training; exact lookup of any past token.","O(L²) compute; KV cache grows with every token.","FlashAttention (IO); linear-time layers"],
+    ["FlashAttention","2022 · NeurIPS","attn","Exact attention, IO-aware: memory linear in L, several times faster.","Cannot change the quadratic arithmetic or the growing KV cache.","Linear-time layers, hybrids"],
+    ["Linear attention","2020 · ICML","ssm","Attention without softmax is an RNN with a matrix memory; O(1) decoding.","Never forgets; crosstalk; no sharp lookup.","Decays (RetNet, GLA); delta rule"],
+    ["Fast weight programmers","2021 · ICML","delta","Reads linear attention as fast weights; proposes the delta-rule update.","Sequential delta update was slow to train.","DeltaNet (parallel WY form)"],
+    ["HiPPO","2020 · NeurIPS","ssm","Optimal polynomial memory is a linear ODE: principled long memory.","A memory mechanism, not yet an efficient deep layer.","LSSL, S4"],
+    ["S4","2022 · ICLR","ssm","Long-range modeling with convolutional training; first to solve Path-X (88.1%).","Time-invariant; intricate NPLR machinery.","S4D/DSS (simplicity); Mamba (selectivity)"],
+    ["DSS & S4D","2022 · NeurIPS","ssm","Diagonal state matrices match S4 with simple initializations.","Still time-invariant.","Mamba"],
+    ["S5","2023 · ICLR","ssm","One MIMO diagonal SSM computed with a parallel scan.","Time-invariant.","Mamba (selective scan)"],
+    ["LRU","2023 · ICML","ssm","A plain, well-initialized diagonal linear RNN matches S4; ODE not required.","Time-invariant; weaker on language.","Griffin's RG-LRU (gating)"],
+    ["H3","2023 · ICLR","ssm","Diagnosed SSM recall failures; gating; a hybrid with 2 attention layers beat a Transformer in perplexity.","Recall gap remains in pure models.","Mamba; hybrids"],
+    ["Hyena","2023 · ICML","ssm","Implicit long convolutions plus data-controlled gating, sub-quadratic.","Recall (MQAR) gap; O(L log L); awkward decoding.","Based; Mamba"],
+    ["RWKV","2023 · Findings of EMNLP","ssm","An RNN trained in parallel and scaled to billions of parameters.","Fixed decays cannot choose what to forget.","Data-dependent decays (GLA, Mamba)"],
+    ["RetNet","2023 · arXiv","ssm","Parallel, recurrent and chunkwise forms of decayed linear attention.","Fixed decay.","GLA, Mamba-2"],
+    ["Mamba","2023 · COLM 2024","ssm","Selectivity (Δ, B, C depend on the token); 5× throughput; 3B matches Transformers of 2× size.","Memory-bound scan with N = 16; recall and state-tracking limits.","Mamba-2; DeltaNet; hybrids"],
+    ["GLA","2024 · ICML","ssm","Data-dependent gates on matrix memory with hardware-efficient chunking.","No targeted overwrite.","Gated DeltaNet"],
+    ["Griffin / Hawk","2024 · arXiv","hyb","RG-LRU plus local attention; Griffin matches Llama-2 with over 6× fewer training tokens.","Local window limits exact long-range recall.","Global-attention hybrids"],
+    ["xLSTM","2024 · NeurIPS","ssm","Exponential gating and a matrix memory (mLSTM) revive the LSTM.","sLSTM part is not parallelizable.","Open"],
+    ["Mamba-2 (SSD)","2024 · ICML","ssm","Proves SSM = masked linear attention; tensor-core chunking; 2–8× faster; larger states.","Scalar decay forgets uniformly.","Gated DeltaNet"],
+    ["DeltaNet","2024 · NeurIPS","delta","Error-correcting writes, parallelized via WY; 1.3B model beats Mamba and GLA.","No fast global forgetting.","Gated DeltaNet"],
+    ["Gated DeltaNet","2025 · ICLR","delta","Decay + delta; beats Mamba-2 and DeltaNet; used in Qwen3-Next.","Fixed capacity; positive eigenvalues by default.","Negative eigenvalues; hybrids"],
+    ["TTT layers","2024 · ICML 2025","delta","Hidden state = a model trained by gradient steps at test time.","Costlier and harder to parallelize.","Open"],
+    ["Titans","2025 · NeurIPS","delta","Deep neural memory with momentum (surprise) and forgetting, plus attention.","Complexity; less large-scale evidence.","Open"],
+    ["DeltaProduct","2025 · NeurIPS","delta","Several Householder steps per token: tunable state-tracking power.","More compute per token.","Open"],
+    ["Zoology","2024 · ICLR","theory","82% of the perplexity gap is associative recall; MQAR benchmark.","Diagnostic, not a fix.","Based; selective models"],
+    ["Based","2024 · ICML","theory","Recall vs. state-size Pareto frontier; linear attention plus sliding window.","Recall still bounded by state.","Hybrids"],
+    ["Repeat After Me","2024 · ICML","theory","Copying needs memory growing with length; Transformers copy exponentially long strings.","A limit, not a fix.","Hybrids"],
+    ["The Illusion of State","2024 · ICML","theory","S4 and Mamba are in TC⁰ like Transformers: no S₅ state tracking.","Worst-case theory (log precision).","Richer transitions"],
+    ["Negative eigenvalues","2025 · ICLR","theory","Positive-only eigenvalues cannot do parity; [−1, 1] fixes it.","Changes training dynamics.","DeltaProduct"],
+    ["Jamba","2024 · arXiv","hyb","Attention:Mamba 1:7 with MoE; 52B total / 12B active; 256K context.","Ratio chosen empirically; attention KV still grows.","Later hybrids (MiniMax-01, Nemotron-H)"],
+    ["Samba","2025 · ICLR","hyb","Mamba + sliding-window attention; efficient length extrapolation.","Window limits exact long recall.","Global-attention hybrids"],
+    ["Mamba-2-Hybrid study","2024 · arXiv","hyb","8B, 7% attention: beats a Transformer on 12 tasks (+2.65 avg); up to 8× faster generation.","Pure SSMs lag on MMLU 5-shot and phonebook.","Production hybrids (Nemotron-H)"],
+    ["Mamba in the Llama","2024 · NeurIPS","hyb","Distills Transformers into hybrids keeping 1/4 of attention layers.","Depends on a teacher Transformer.","Open"],
+    ["MiniMax-01","2025 · arXiv","hyb","456B total / 45.9B active; one softmax layer per 7 lightning-attention layers; 1M-token training context.","Softmax layers still keep a growing KV cache; ratio set empirically.","Open (Part IV)"],
+    ["Nemotron-H","2025 · arXiv","hyb","About 8% attention layers, the rest Mamba-2 and FFN; up to 3× faster inference.","Attention layers still grow with context.","Open (Part IV)"],
+    ["Qwen3-Next","2025 · blog","hyb","3 Gated DeltaNet : 1 gated attention; 80B total / 3B active.","Attention layers still grow; documented in a blog and model card only.","Open (Part IV)"],
+    ["Kimi Linear","2025 · arXiv","hyb","Channel-wise gated delta rule (KDA), 3:1 with MLA; KV cache −75%; up to 6× decoding at 1M.","MLA layers keep a growing (if 75% smaller) KV cache.","Open (Part IV)"],
+    ["Vision Mamba & VMamba","2024 · ICML / NeurIPS","ssm","SSMs for images with bidirectional / multi-directional scans.","A 1-D scan order imposed on 2-D data.","Open"],
+    ["HyenaDNA","2023 · NeurIPS","ssm","Genomic modeling at single-nucleotide resolution up to 1M tokens.","Domain-specific evaluation.","Open"]
+  ];
+  var grid = $("cardGrid"), filt = "all";
+  var famCls = {ssm:"fam-ssm", delta:"fam-delta", hyb:"fam-hyb", attn:"fam-attn", theory:"fam-hyb"};
+  function render(){ grid.innerHTML = P.filter(function(p){ return filt === "all" || p[2] === filt || (filt === "ssm" && p[2] === "attn"); }).map(function(p){ return '<div class="card ' + famCls[p[2]] + '"><h5>' + p[0] + '</h5><div class="yr">' + p[1] + '</div><div class="row"><b>Nails</b>' + p[3] + '</div><div class="row"><b>Falls short</b>' + p[4] + '</div><div class="row"><b>Addressed by</b>' + p[5] + '</div></div>'; }).join(""); }
+  setupSeg("cardFilter", function(f){ filt = f; render(); }); render();
+})();
+
+/* ---------- scorecard ---------- */
+(function(){
+  var icon = {
+    y:'<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" style="fill:var(--good)"/><path d="M4.8 8.2l2.1 2.1 4.3-4.6" style="fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"/></svg>',
+    p:'<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" style="fill:none;stroke:#c98500;stroke-width:1.8"/><path d="M8 2a6 6 0 0 1 0 12z" style="fill:#c98500"/></svg>',
+    n:'<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" style="fill:none;stroke:var(--muted);stroke-width:1.6"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" style="stroke:var(--muted);stroke-width:1.6;stroke-linecap:round"/></svg>'};
+  var word = {y:"yes", p:"partly", n:"no"};
+  Array.prototype.forEach.call(document.querySelectorAll(".mk[data-s]"), function(el){ el.innerHTML = icon[el.dataset.s] + word[el.dataset.s]; });
+  var cols = ["Parallel training", "Constant decode memory", "Content selection", "Targeted overwrite", "Exact long recall", "State tracking", "Tensor-core friendly"];
+  var rows = [
+    ["Softmax attention", "attn", ["y","Matmuls over all positions at once."], ["n","KV cache grows linearly with context."], ["y","Query–key scores are content-based."], ["y","Nothing needs overwriting: every token is kept verbatim."], ["y","Sharp softmax retrieves any past token."], ["n","In TC⁰ (log precision): no S₅ word problem (Merrill et al.)."], ["y","Dense matmuls (FlashAttention)."]],
+    ["LSTM", "ssm", ["n","Nonlinear recurrence must run step by step."], ["y","Fixed-size hidden state."], ["y","Input-dependent gates."], ["p","Gates can reset cells, but not by key."], ["n","Fixed state; vanishing gradients."], ["y","Nonlinear RNNs can track finite-state machines."], ["n","Sequential."]],
+    ["S4 / S4D / LRU", "ssm", ["y","Convolution (FFT) or scan."], ["y","N numbers per channel."], ["n","Time-invariant: the same kernel for every input."], ["n","No input-dependent forgetting."], ["n","Fixed state; no selection."], ["n","TC⁰; diagonal transitions."], ["p","FFT/scan, not dense matmul."]],
+    ["Mamba", "ssm", ["y","Hardware-aware parallel scan."], ["y","d × N state."], ["y","Δ, B, C depend on the token."], ["p","Large Δ resets a channel, but not by key."], ["p","Better than LTI, still fixed capacity."], ["n","Non-negative diagonal: no parity."], ["n","Elementwise scan is memory-bound."]],
+    ["Mamba-2 / GLA", "ssm", ["y","Chunkwise (SSD) algorithm."], ["y","Matrix state per head."], ["y","Input-dependent decay."], ["n","Decay shrinks all associations together."], ["p","Larger states help; still bounded."], ["n","Non-negative scalar/diagonal transitions."], ["y","Intra-chunk work is dense matmul."]],
+    ["DeltaNet", "delta", ["y","WY representation enables chunking."], ["y","Matrix state."], ["y","Keys, values and β depend on the token."], ["y","Error-correcting write replaces the value for a key."], ["p","Less interference; capacity still bounded."], ["p","Non-diagonal, but eigenvalues in [0,1] by default."], ["y","Chunkwise WY matmuls."]],
+    ["Gated DeltaNet", "delta", ["y","Chunkwise WY + gating."], ["y","Matrix state."], ["y","Input-dependent α, β, k, v."], ["y","Delta rule + fast global erase."], ["p","Best of the recurrent layers; still bounded (Prop. 1)."], ["p","Needs negative eigenvalues (β up to 2) for parity."], ["y","Chunkwise matmuls."]],
+    ["DeltaProduct / β∈[0,2]", "delta", ["y","Products of Householder steps stay chunkable."], ["y","Matrix state."], ["y","Input-dependent."], ["y","Delta-style writes."], ["p","Bounded capacity."], ["y","Negative eigenvalues; Householder products can recognize regular languages."], ["p","More work per token."]],
+    ["Hybrid (recurrent + ~1/4 attention)", "hyb", ["y","Both layer types parallelize."], ["p","KV cache shrinks by the attention fraction but still grows."], ["y","Both layer types are content-based."], ["y","Delta-rule layers (e.g. Qwen3-Next, Kimi Linear)."], ["y","Attention layers restore exact recall."], ["p","Inherits the limits of its components."], ["y","Mostly matmuls."]]
+  ];
+  var famC = {attn:"var(--attn)", ssm:"var(--ssm)", delta:"var(--delta)", hyb:"var(--hyb)"};
+  var h = "<thead><tr><th>Model family</th>" + cols.map(function(c){ return "<th>" + c + "</th>"; }).join("") + "</tr></thead><tbody>";
+  rows.forEach(function(r, ri){ h += "<tr><td><span class='dot' style='background:" + famC[r[1]] + "'></span>" + r[0] + "</td>"; for (var c = 2; c < r.length; c++) h += "<td data-r='" + ri + "' data-c='" + c + "'><span class='mk'>" + icon[r[c][0]] + word[r[c][0]] + "</span></td>"; h += "</tr>"; });
+  var tbl = $("scoreTable"); tbl.innerHTML = h + "</tbody>";
+  hoverTip(tbl, function(ev){ var td = ev.target.closest("td[data-r]"); if (!td) return null; var r = rows[+td.dataset.r], c = +td.dataset.c; return "<b>" + r[0] + " · " + cols[c - 2] + "</b><br>" + r[c][1]; });
+})();
+
+/* ---------- memory chart (hybrid slider) ---------- */
+(function(){
+  var sl = $("memK"), svg = $("memSvg"), KV = 131072, ST = 2*1048576, GiB = 1073741824;
+  function render(){
+    var k = +sl.value; $("memKv").textContent = k + " of 32 (1 : " + fx((32 - k)/k, 1) + ")";
+    var tr = function(x){ return x*32*KV/32/GiB*1; }, hy = function(x){ return (x*k*KV/32 + (32 - k)*ST)/GiB; }, re = function(){ return 32*ST/GiB; };
+    tr = function(x){ return x*KV/GiB; };
+    $("memTiles").innerHTML = [[131072, "at 128K tokens"], [1048576, "at 1M tokens"]].map(function(p){ return '<div class="tile"><div class="l">Transformer ' + p[1] + '</div><div class="v">' + bytes(tr(p[0])*GiB) + '</div></div><div class="tile"><div class="l">Hybrid ' + p[1] + '</div><div class="v">' + bytes(hy(p[0])*GiB) + '</div><div class="s">' + fx(tr(p[0])/hy(p[0]), 1) + '&times; smaller</div></div>'; }).join("") + '<div class="tile"><div class="l">Pure recurrent, any length</div><div class="v">' + bytes(re()*GiB) + '</div></div>';
+    logChart(svg, {xmin:1024, xmax:1048576, ymin:0.02, ymax:300, xname:"context", xlabel:"context length (tokens)", ylabel:"GiB per sequence", mark:131072,
+      xticks:[1024, 8192, 65536, 1048576], yticks:[0.1, 1, 10, 100], xfmt:function(v){ return tok(v); }, yfmt:function(v){ return v < 1 ? String(v) : compact(v); }, vfmt:function(v){ return bytes(v*GiB); },
+      series:[{name:"Transformer", label:"Transformer", color:"var(--attn)", f:tr}, {name:"Hybrid", label:"Hybrid (" + k + " attn.)", color:"var(--delta)", f:hy}, {name:"Pure recurrent", label:"Pure recurrent", color:"var(--ssm)", f:re}]});
+  }
+  sl.addEventListener("input", render); render(); onTheme(render);
+})();
+
+/* ---------- hybrid stacks ---------- */
+(function(){
+  var host = $("w-stacks");
+  var M = [
+    ["Jamba", "Mamba", 32, function(i){ return i % 8 === 4; }, "1 : 7", "attention : Mamba"],
+    ["Mamba-2-Hybrid (8B study)", "Mamba-2", 28, function(i){ return i % 7 === 3; }, "7% of all layers", "4 attention, 24 Mamba-2 (+28 MLP)"],
+    ["Nemotron-H-8B", "Mamba-2", 28, function(i){ return i % 7 === 3; }, "≈ 8% of all layers", "4 of 52 layers are attention"],
+    ["MiniMax-01", "lightning (linear) attn.", 80, function(i){ return i % 8 === 7; }, "1 : 7", "softmax : lightning"],
+    ["Qwen3-Next-80B-A3B", "Gated DeltaNet", 48, function(i){ return i % 4 === 3; }, "1 : 3", "12 × (3 GDN + 1 attn.)"],
+    ["Kimi Linear", "KDA (gated delta)", 24, function(i){ return i % 4 === 3; }, "1 : 3", "pattern shown; 3 KDA : 1 MLA"]
+  ];
+  var deltaFam = {"Gated DeltaNet":1, "KDA (gated delta)":1};
+  var h = '<div class="wh"><span class="wt">Layer recipes of real hybrids</span><span class="wd">Token-mixing layers only, in depth order (simplified). Ratios are from the papers and model cards.</span></div><div class="legend"><span><i class="sq" style="background:var(--attn)"></i>softmax attention</span><span><i class="sq" style="background:var(--ssm)"></i>Mamba-family / linear attention</span><span><i class="sq" style="background:var(--delta)"></i>delta-rule family</span></div>';
+  M.forEach(function(m){ var cells = ""; for (var i = 0; i < m[2]; i++){ var att = m[3](i); cells += '<i title="' + (att ? "attention" : m[1]) + '" style="background:' + (att ? "var(--attn)" : (deltaFam[m[1]] ? "var(--delta)" : "var(--ssm)")) + '"></i>'; } h += '<div class="stackrow"><div><div class="n">' + m[0] + '</div><div class="small">' + m[1] + '</div></div><div class="stack">' + cells + '</div><div class="r"><b>' + m[4] + '</b><br><span class="small">' + m[5] + '</span></div></div>'; });
+  host.innerHTML = h;
+})();
+
+/* ---------- math rendering ---------- */
+function renderMath(){ if (window.renderMathInElement) { renderMathInElement(document.body, {delimiters:[{left:"$$", right:"$$", display:true}, {left:"\\(", right:"\\)", display:false}], ignoredTags:["script","noscript","style","textarea","pre","code","svg"], throwOnError:false}); } }
+renderMath();
+});
+</script>
+</body>
+</html>
