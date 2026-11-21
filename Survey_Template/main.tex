@@ -1,0 +1,58 @@
+\documentclass[a4paper]{article} 
+\input{style/head.tex}
+\usepackage{indentfirst}
+\setlength{\parindent}{2em}
+%-------------------------------
+%	TITLE VARIABLES
+%-------------------------------
+
+\newcommand{\yourname}{Your Name}         % Top-left header: your name or handle
+\newcommand{\youremail}{name@example.com} % Top-left header: contact email (optional)
+\newcommand{\papertitle}{The Title of Your Survey} % Centered paper title
+\newcommand{\authorship}{Your Name}       % Centered under the title (name or affiliation)
+
+\begin{document}
+
+%-------------------------------
+%	TITLE SECTION (do not modify unless you really need to)
+%-------------------------------
+\input{style/header.tex}
+
+\begin{abstract}
+The abstract of survey.
+\end{abstract}
+
+\section{Introduction} % this is an example
+The Introduction of Survey.
+
+\section{Figure Example}
+Fig.~\ref{fig:example} is an example.
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.55\textwidth]{figures/draft.png}
+    \caption{\label{fig:example}An example.}
+\end{figure}
+
+\section{Table Example}
+Table~\ref{tab:example} is an example.
+\begin{table}[h]
+\centering
+\caption{An example.}\label{tab:example}
+\resizebox{0.4\textwidth}{!}{
+\begin{tabular}{ll}
+\multicolumn{1}{c}{\bf PART}  &\multicolumn{1}{c}{\bf DESCRIPTION}
+\\ \hline \\
+Dendrite         &Input terminal \\
+Axon             &Output terminal \\
+Soma             &Cell body (contains cell nucleus) \\
+\end{tabular}
+}
+\end{table}
+
+\section{Citation}
+Citations within the text should be based on the package \text{natbib} and include the authors' last names and year (with the ``et~al.'' construct for more than two authors). When the authors or the publication are included in the sentence, the citation should not be in parenthesis using \verb|\citet{}| (as in ``See \citet{Hinton06} for more information.''). Otherwise, the citation should be in parenthesis using \verb|\citep{}| (as in ``Deep learning shows promise to make progress towards AI~\citep{Bengio+chapter2007}.'').
+
+\newpage
+\bibliographystyle{apalike}
+\bibliography{Paper_summaries}
+\end{document}
