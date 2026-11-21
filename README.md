@@ -67,3 +67,13 @@ xelatex main.tex
 1. Upload the contents of [`Survey_Template/`](./Survey_Template/) to a new Overleaf project.
 2. Open **Menu → Compiler** and set it to **XeLaTeX**.
 3. Edit the title variables at the top of `main.tex` and replace the example sections and `Paper_summaries.bib` entries with your survey content.
+
+---
+
+## 5. Submission
+
+| Deliverable | File | Notes |
+|---|---|---|
+| Survey (PDF) | [`Survey.pdf`](./Survey.pdf) | *Beyond Quadratic Attention: A Survey of State Space Models, Linear Recurrences and Hybrids*: 10 pages of main text + 3 pages of references; 4 self-made TikZ/pgfplots figures, 3 tables; 47 references (38 peer-reviewed). |
+| LaTeX source | [`Survey_Template/main.tex`](./Survey_Template/main.tex), [`Survey_Template/Paper_summaries.bib`](./Survey_Template/Paper_summaries.bib) | Built on the provided template; compile with XeLaTeX + BibTeX exactly as in Section 4. |
+| Interactive explainer | [`explainer/index.html`](./explainer/index.html) | A visual, math-first walkthrough of the same topic (12 interactive figures, step-by-step derivations, light/dark mode). Open it in any modern browser; an internet connection is needed only to load the KaTeX math fonts. |
